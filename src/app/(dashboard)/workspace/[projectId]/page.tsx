@@ -1,0 +1,161 @@
+import { getServerSession } from "next-auth";
+import { notFound, redirect } from "next/navigation";
+
+import { ProjectWorkspaceClient } from "@/components/workspace/ProjectWorkspaceClient";
+import { authOptions } from "@/lib/auth";
+import { canAccessProjectWorkspace } from "@/lib/project-access";
+import { prisma } from "@/lib/prisma";
+
+const messageSelect = {
+  id: true,
+  body: true,
+  translatedBody: true,
+  senderRole: true,
+  createdAt: true,
+  sender: {
+    select: {
+      name: true,
+      email: true,
+    },
+  },
+};
+
+export default async function WorkspaceProjectPage({
+  params,
+}: {
+  params: Promise<{ projectId: string }>;
+}) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.id || !session.user.role) {
+    redirect("/login");
+  }
+
+  const { projectId } = await params;
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      category: true,
+      budget: true,
+      currency: true,
+      deadline: true,
+      status: true,
+      clientId: true,
+      client: {
+        select: {
+          name: true,
+          email: true,
+          company: true,
+        },
+      },
+      escrow: {
+        select: {
+          id: true,
+          amount: true,
+          currency: true,
+          status: true,
+          paymentMethod: true,
+          events: {
+            orderBy: { createdAt: "desc" },
+            take: 6,
+            select: {
+              id: true,
+              actorRole: true,
+              fromStatus: true,
+              toStatus: true,
+              note: true,
+              createdAt: true,
+              actor: {
+                select: {
+                  name: true,
+                  email: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      messages: {
+        orderBy: { createdAt: "asc" },
+        select: messageSelect,
+      },
+      files: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          kind: true,
+          fileName: true,
+          mimeType: true,
+          size: true,
+          createdAt: true,
+          uploaderRole: true,
+          uploader: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!project) {
+    notFound();
+  }
+
+  if (!canAccessProjectWorkspace(project, session.user.id, session.user.role)) {
+    redirect("/discovery");
+  }
+
+  return (
+    <section className="mx-auto grid max-w-6xl gap-6">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft">
+          <p className="mb-2 text-sm font-semibold uppercase text-primary">
+            Project Workspace
+          </p>
+          <h1 className="text-3xl font-bold text-slate-950">
+            {project.title}
+          </h1>
+          <p className="mt-2 text-sm text-slate-500">
+            Workspace tersedia untuk role {session.user.role}. Chat history
+            disimpan per project dan tetap muncul setelah refresh.
+          </p>
+        </div>
+        <ProjectWorkspaceClient
+          role={session.user.role}
+          project={{
+            id: project.id,
+            title: project.title,
+            description: project.description,
+            category: project.category,
+            budget: project.budget,
+            currency: project.currency,
+            deadline: project.deadline.toISOString(),
+            status: project.status,
+            client: project.client,
+            escrow: project.escrow
+              ? {
+                  ...project.escrow,
+                  events: project.escrow.events.map((event) => ({
+                    ...event,
+                    createdAt: event.createdAt.toISOString(),
+                  })),
+                }
+              : null,
+          }}
+          initialMessages={project.messages.map((message) => ({
+            ...message,
+            createdAt: message.createdAt.toISOString(),
+          }))}
+          initialFiles={project.files.map((file) => ({
+            ...file,
+            createdAt: file.createdAt.toISOString(),
+          }))}
+        />
+      </section>
+  );
+}

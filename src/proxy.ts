@@ -1,0 +1,60 @@
+import { getToken } from "next-auth/jwt";
+import { NextRequest, NextResponse } from "next/server";
+
+import { dashboardPathForRole } from "@/lib/dashboard";
+
+const protectedPrefixes = [
+  "/client",
+  "/freelancer",
+  "/settings",
+  "/workspace",
+];
+
+export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+  const isProtectedRoute = protectedPrefixes.some((prefix) =>
+    pathname.startsWith(prefix),
+  );
+
+  if (!isProtectedRoute) {
+    return NextResponse.next();
+  }
+
+  const token = await getToken({
+    req: request,
+    secret: process.env.NEXTAUTH_SECRET,
+  });
+
+  if (!token) {
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.searchParams.set("callbackUrl", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  if (pathname.startsWith("/workspace") || pathname.startsWith("/settings")) {
+    return NextResponse.next();
+  }
+
+  if (pathname.startsWith("/client") && token.role !== "client") {
+    return NextResponse.redirect(
+      new URL(dashboardPathForRole(token.role), request.url),
+    );
+  }
+
+  if (pathname.startsWith("/freelancer") && token.role !== "freelancer") {
+    return NextResponse.redirect(
+      new URL(dashboardPathForRole(token.role), request.url),
+    );
+  }
+
+  return NextResponse.next();
+}
+
+export const config = {
+  matcher: [
+    "/client/:path*",
+    "/freelancer/:path*",
+    "/settings",
+    "/workspace/:path*",
+  ],
+};
