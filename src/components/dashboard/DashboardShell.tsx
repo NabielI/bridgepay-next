@@ -170,10 +170,10 @@ export function DashboardShell({
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-5">
               <div>
                 <h2 className="text-lg font-bold text-slate-950">
-                  Proyek Terbuka
+                  Proyek Aktif Saya
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Data ditarik langsung dari tabel Project.
+                  Workspace hanya tersedia setelah client menerima lamaran.
                 </p>
               </div>
               <Link
@@ -191,8 +191,8 @@ export function DashboardShell({
                   Belum ada proyek open
                 </h3>
                 <p className="mx-auto mt-1 max-w-md text-sm text-slate-500">
-                  Project baru dari client akan muncul di sini setelah disimpan
-                  ke database.
+                  Ajukan diri di Discovery Feed, lalu project accepted akan
+                  muncul di sini.
                 </p>
               </div>
             ) : (
@@ -239,10 +239,10 @@ export function DashboardShell({
                       </span>
                     </div>
                     <Link
-                      href={`/workspace/${project.id}`}
+                      href="/freelancer/projects"
                       className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                     >
-                      Buka Workspace
+                      Lihat Status Lamaran
                     </Link>
                   </article>
                 ))}

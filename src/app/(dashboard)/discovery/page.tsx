@@ -11,6 +11,7 @@ import {
 
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { ProjectApplyButton } from "@/components/projects/ProjectApplyButton";
 
 function escrowLabel(status?: string) {
   if (status === "held") {
@@ -38,6 +39,10 @@ function escrowBadgeClass(status?: string) {
 
 export default async function DiscoveryPage() {
   const session = await getServerSession(authOptions);
+  const isFreelancer = session?.user?.role === "freelancer";
+  const isClient = session?.user?.role === "client";
+  const currentFreelancerId =
+    isFreelancer && session?.user?.id ? session.user.id : "__not_freelancer__";
   const [freelancers, clients, projects, gigs] = await Promise.all([
     prisma.user.findMany({
       where: { role: "freelancer" },
@@ -86,6 +91,14 @@ export default async function DiscoveryPage() {
             paymentMethod: true,
           },
         },
+        applications: {
+          where: { freelancerId: currentFreelancerId },
+          take: 1,
+          select: {
+            id: true,
+            status: true,
+          },
+        },
         client: {
           select: {
             name: true,
@@ -119,8 +132,6 @@ export default async function DiscoveryPage() {
       },
     }),
   ]);
-  const isFreelancer = session?.user?.role === "freelancer";
-  const isClient = session?.user?.role === "client";
 
   return (
     <div className="grid gap-6">
@@ -204,12 +215,12 @@ export default async function DiscoveryPage() {
                         {project.deadline.toLocaleDateString("id-ID")}
                       </span>
                     </div>
-                    <Link
-                      href={`/workspace/${project.id}`}
-                      className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      Ajukan Proyek
-                    </Link>
+                    <ProjectApplyButton
+                      projectId={project.id}
+                      projectTitle={project.title}
+                      projectStatus={project.status}
+                      initialApplication={project.applications[0] ?? null}
+                    />
                   </article>
                 ))}
               </div>

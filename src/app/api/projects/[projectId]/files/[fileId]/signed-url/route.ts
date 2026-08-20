@@ -35,6 +35,7 @@ export async function POST(
         select: {
           id: true,
           clientId: true,
+          assignedFreelancerId: true,
           status: true,
         },
       },

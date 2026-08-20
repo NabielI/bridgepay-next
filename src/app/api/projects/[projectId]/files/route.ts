@@ -49,6 +49,7 @@ async function getProjectAccess(projectId: string) {
     select: {
       id: true,
       clientId: true,
+      assignedFreelancerId: true,
       status: true,
     },
   });

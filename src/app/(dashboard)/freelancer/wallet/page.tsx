@@ -17,10 +17,11 @@ function statusClass(status: string) {
 }
 
 export default async function FreelancerWalletPage() {
-  await requireDashboardSession("freelancer");
+  const session = await requireDashboardSession("freelancer");
   const escrows = await prisma.escrow.findMany({
     where: {
       project: {
+        assignedFreelancerId: session.user.id,
         status: { in: ["open", "active", "completed"] },
       },
     },

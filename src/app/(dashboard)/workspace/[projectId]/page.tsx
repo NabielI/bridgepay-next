@@ -44,6 +44,7 @@ export default async function WorkspaceProjectPage({
       deadline: true,
       status: true,
       clientId: true,
+      assignedFreelancerId: true,
       client: {
         select: {
           name: true,

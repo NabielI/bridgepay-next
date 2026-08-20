@@ -54,6 +54,7 @@ async function getAccessibleProject(projectId: string) {
     select: {
       id: true,
       clientId: true,
+      assignedFreelancerId: true,
       status: true,
     },
   });

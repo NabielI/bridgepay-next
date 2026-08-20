@@ -15,7 +15,10 @@ export default async function WorkspacePage() {
     where:
       session.user.role === "client"
         ? { clientId: session.user.id }
-        : { status: { in: ["open", "active"] } },
+        : {
+            assignedFreelancerId: session.user.id,
+            status: { in: ["active", "completed"] },
+          },
     orderBy: { updatedAt: "desc" },
     select: { id: true },
   });

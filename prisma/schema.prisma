@@ -31,6 +31,13 @@ enum ProjectStatus {
   cancelled
 }
 
+enum ProjectApplicationStatus {
+  pending
+  accepted
+  rejected
+  withdrawn
+}
+
 enum EscrowStatus {
   pending
   held
@@ -76,38 +83,61 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts       Account[]
-  sessions       Session[]
-  clientProjects Project[] @relation("ClientProjects")
-  sentMessages   Message[] @relation("MessageSender")
-  escrowEvents   EscrowEvent[] @relation("EscrowActor")
-  uploadedFiles  ProjectFile[] @relation("ProjectFileUploader")
-  kycSubmissions KycSubmission[] @relation("KycOwner")
-  reviewedKycSubmissions KycSubmission[] @relation("KycReviewer")
-  gigs           Gig[] @relation("FreelancerGigs")
-  gigDrafts      GigDraft[] @relation("GigDraftAuthor")
+  accounts               Account[]
+  sessions               Session[]
+  clientProjects         Project[]            @relation("ClientProjects")
+  sentMessages           Message[]            @relation("MessageSender")
+  escrowEvents           EscrowEvent[]        @relation("EscrowActor")
+  uploadedFiles          ProjectFile[]        @relation("ProjectFileUploader")
+  kycSubmissions         KycSubmission[]      @relation("KycOwner")
+  reviewedKycSubmissions KycSubmission[]      @relation("KycReviewer")
+  gigs                   Gig[]                @relation("FreelancerGigs")
+  gigDrafts              GigDraft[]           @relation("GigDraftAuthor")
+  projectApplications    ProjectApplication[] @relation("FreelancerApplications")
+  assignedProjects       Project[]            @relation("AssignedFreelancerProjects")
 }
 
 model Project {
-  id          String        @id @default(cuid())
-  title       String
-  description String        @db.Text
-  category    String
-  budget      Int
-  currency    String        @default("USD")
-  deadline    DateTime
-  status      ProjectStatus @default(open)
-  clientId    String
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id                   String        @id @default(cuid())
+  title                String
+  description          String        @db.Text
+  category             String
+  budget               Int
+  currency             String        @default("USD")
+  deadline             DateTime
+  status               ProjectStatus @default(open)
+  clientId             String
+  assignedFreelancerId String?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
-  client   User      @relation("ClientProjects", fields: [clientId], references: [id], onDelete: Cascade)
-  messages Message[]
-  escrow   Escrow?
-  files    ProjectFile[]
+  client             User                 @relation("ClientProjects", fields: [clientId], references: [id], onDelete: Cascade)
+  assignedFreelancer User?                @relation("AssignedFreelancerProjects", fields: [assignedFreelancerId], references: [id], onDelete: SetNull)
+  messages           Message[]
+  escrow             Escrow?
+  files              ProjectFile[]
+  applications       ProjectApplication[]
 
   @@index([clientId])
+  @@index([assignedFreelancerId])
   @@index([status])
+}
+
+model ProjectApplication {
+  id           String                   @id @default(cuid())
+  projectId    String
+  freelancerId String
+  coverLetter  String?                  @db.Text
+  status       ProjectApplicationStatus @default(pending)
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  freelancer User    @relation("FreelancerApplications", fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, freelancerId])
+  @@index([projectId, status])
+  @@index([freelancerId, status])
 }
 
 model ProjectFile {

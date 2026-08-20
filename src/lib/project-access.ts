@@ -3,6 +3,7 @@ import type { ProjectStatus, Role } from "@prisma/client";
 interface ProjectAccessInput {
   clientId: string;
   status: ProjectStatus;
+  assignedFreelancerId: string | null;
 }
 
 export function canAccessProjectWorkspace(
@@ -14,5 +15,8 @@ export function canAccessProjectWorkspace(
     return project.clientId === userId;
   }
 
-  return project.status === "open" || project.status === "active";
+  return (
+    project.assignedFreelancerId === userId &&
+    (project.status === "active" || project.status === "completed")
+  );
 }

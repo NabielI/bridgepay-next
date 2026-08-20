@@ -3,6 +3,7 @@ import { CalendarDays, FolderKanban, Plus, ShieldCheck } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
 import { requireDashboardSession } from "@/lib/route-guards";
+import { ClientProjectApplications } from "@/components/projects/ClientProjectApplications";
 
 function escrowLabel(status?: string) {
   if (status === "held") {
@@ -38,11 +39,38 @@ export default async function ClientProjectsPage() {
       currency: true,
       deadline: true,
       status: true,
+      assignedFreelancerId: true,
+      assignedFreelancer: {
+        select: {
+          name: true,
+          email: true,
+        },
+      },
       escrow: {
         select: {
           status: true,
           amount: true,
           currency: true,
+        },
+      },
+      applications: {
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          coverLetter: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          freelancer: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              skills: true,
+              rate: true,
+              kycStatus: true,
+            },
+          },
         },
       },
     },
@@ -95,6 +123,13 @@ export default async function ClientProjectsPage() {
               </div>
               <h2 className="font-bold text-slate-950">{project.title}</h2>
               <p className="mt-1 text-sm text-slate-500">{project.category}</p>
+              {project.assignedFreelancer ? (
+                <p className="mt-2 text-sm font-semibold text-primary">
+                  Assigned to{" "}
+                  {project.assignedFreelancer.name ??
+                    project.assignedFreelancer.email}
+                </p>
+              ) : null}
               <p className="mt-3 line-clamp-3 text-sm leading-6 text-slate-600">
                 {project.description}
               </p>
@@ -119,6 +154,16 @@ export default async function ClientProjectsPage() {
               >
                 Buka Workspace
               </Link>
+              <ClientProjectApplications
+                projectId={project.id}
+                initialProjectStatus={project.status}
+                initialAssignedFreelancerId={project.assignedFreelancerId}
+                initialApplications={project.applications.map((application) => ({
+                  ...application,
+                  createdAt: application.createdAt.toISOString(),
+                  updatedAt: application.updatedAt.toISOString(),
+                }))}
+              />
             </article>
           ))}
         </div>

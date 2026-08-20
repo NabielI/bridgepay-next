@@ -50,7 +50,10 @@ export default async function FreelancerDashboardPage() {
       },
     }),
     prisma.project.findMany({
-      where: { status: "open" },
+      where: {
+        assignedFreelancerId: session.user.id,
+        status: { in: ["active", "completed"] },
+      },
       orderBy: { createdAt: "desc" },
       take: 6,
       select: {
