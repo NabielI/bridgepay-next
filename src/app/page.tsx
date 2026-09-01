@@ -102,12 +102,11 @@ export default async function Home() {
             Harga & Biaya
           </p>
           <h2 className="font-display text-3xl font-bold text-slate-950">
-            Fee prototype transparan untuk demo capstone.
+            Fee transparan untuk setiap transaksi.
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600">
-            BridgePay menampilkan model marketplace fee, escrow milestone, dan
-            payout lokal sebagai simulasi produk. Integrasi payment gateway asli
-            bisa masuk sebagai fase production hardening.
+            BridgePay menerapkan model marketplace fee, escrow milestone, dan
+            payout lokal dengan perhitungan biaya yang jelas sejak awal.
           </p>
         </div>
       </section>
