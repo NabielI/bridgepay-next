@@ -1,10 +1,13 @@
 "use client";
 
 import {
+  CreditCard,
   Download,
+  ExternalLink,
   FileText,
   Languages,
   Loader2,
+  RefreshCw,
   Send,
   ShieldCheck,
   Upload,
@@ -40,7 +43,20 @@ interface WorkspaceEscrow {
   exchangeRateSnapshot: number | null;
   exchangeRateTimestamp: string | null;
   exchangeRateSource: string | null;
+  paymentTransactions: WorkspacePaymentTransaction[];
   events: WorkspaceEscrowEvent[];
+}
+
+interface WorkspacePaymentTransaction {
+  id: string;
+  provider: string;
+  providerOrderId: string;
+  providerRedirectUrl: string | null;
+  amount: number;
+  currency: string;
+  status: string;
+  paidAt: string | null;
+  createdAt: string;
 }
 
 interface WorkspaceEscrowEvent {
@@ -183,6 +199,42 @@ function formatRate(rate: number) {
   }).format(rate);
 }
 
+function formatPaymentAmount(amount: number, currency: string) {
+  return new Intl.NumberFormat(currency === "IDR" ? "id-ID" : "en-US", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function paymentStatusLabel(status?: string) {
+  if (status === "settled") {
+    return "Paid";
+  }
+
+  if (status === "failed") {
+    return "Failed";
+  }
+
+  if (status === "amount_mismatch") {
+    return "Needs Review";
+  }
+
+  return "Pending";
+}
+
+function paymentStatusClass(status?: string) {
+  if (status === "settled") {
+    return "bg-teal-50 text-primary";
+  }
+
+  if (status === "failed" || status === "amount_mismatch") {
+    return "bg-amber-50 text-amber-700";
+  }
+
+  return "bg-slate-100 text-slate-600";
+}
+
 export function ProjectWorkspaceClient({
   role,
   project,
@@ -198,6 +250,9 @@ export function ProjectWorkspaceClient({
   const [pending, setPending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [escrow, setEscrow] = useState<WorkspaceEscrow | null>(project.escrow);
+  const [paymentTransactions, setPaymentTransactions] = useState<
+    WorkspacePaymentTransaction[]
+  >(project.escrow?.paymentTransactions ?? []);
   const [escrowPending, setEscrowPending] = useState<"fund" | "release" | null>(
     null,
   );
@@ -207,6 +262,7 @@ export function ProjectWorkspaceClient({
   const [fileError, setFileError] = useState<string | null>(null);
   const escrowStatus = escrow?.status ?? "pending";
   const escrowEvents = escrow?.events ?? [];
+  const latestPayment = paymentTransactions[0] ?? null;
   const uploadKind = role === "freelancer" ? "deliverable" : "reference";
   const escrowAmount = escrow?.amount ?? project.budget;
   const lockedRate = escrow?.exchangeRateSnapshot ?? null;
@@ -280,6 +336,36 @@ export function ProjectWorkspaceClient({
     }
 
     setEscrow(payload.escrow);
+    setPaymentTransactions(payload.escrow.paymentTransactions ?? []);
+  }
+
+  async function startMidtransPayment() {
+    setEscrowPending("fund");
+    setEscrowError(null);
+
+    const response = await fetch(`/api/projects/${project.id}/payments/midtrans`, {
+      method: "POST",
+    });
+    const payload = (await response.json().catch(() => null)) as {
+      payment?: WorkspacePaymentTransaction;
+      message?: string;
+    } | null;
+
+    setEscrowPending(null);
+
+    if (!response.ok || !payload?.payment) {
+      setEscrowError(payload?.message ?? "Checkout Midtrans gagal dibuat.");
+      return;
+    }
+
+    setPaymentTransactions((current) => [
+      payload.payment!,
+      ...current.filter((payment) => payment.id !== payload.payment!.id),
+    ]);
+
+    if (payload.payment.providerRedirectUrl) {
+      window.open(payload.payment.providerRedirectUrl, "_blank", "noopener,noreferrer");
+    }
   }
 
   async function uploadProjectFile(event: FormEvent<HTMLFormElement>) {
@@ -502,6 +588,50 @@ export function ProjectWorkspaceClient({
             <div className="mt-1 text-xs text-slate-500">
               Method: {escrow?.paymentMethod ?? "master_account"}
             </div>
+            {latestPayment ? (
+              <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-xs font-semibold text-slate-500">
+                    Midtrans Sandbox Payment
+                  </div>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${paymentStatusClass(latestPayment.status)}`}
+                  >
+                    {paymentStatusLabel(latestPayment.status)}
+                  </span>
+                </div>
+                <div className="mt-1 font-bold text-slate-950">
+                  {formatPaymentAmount(latestPayment.amount, latestPayment.currency)}
+                </div>
+                <div className="mt-1 truncate text-xs text-slate-500">
+                  Order: {latestPayment.providerOrderId}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {latestPayment.providerRedirectUrl &&
+                  latestPayment.status !== "settled" ? (
+                    <a
+                      href={latestPayment.providerRedirectUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                      data-testid="midtrans-payment-link"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Buka Checkout
+                    </a>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => window.location.reload()}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                    data-testid="midtrans-payment-refresh"
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    Refresh Status
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <div className="mt-4 grid gap-3">
               <div className="rounded-xl border border-teal-100 bg-white p-3">
                 <div className="text-xs font-semibold text-primary">
@@ -576,15 +706,17 @@ export function ProjectWorkspaceClient({
               {escrowStatus === "pending" ? (
                 <button
                   type="button"
-                  onClick={() => updateEscrow("fund")}
+                  onClick={startMidtransPayment}
                   disabled={Boolean(escrowPending)}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  data-testid="escrow-fund"
+                  data-testid="midtrans-payment-start"
                 >
                   {escrowPending === "fund" ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : null}
-                  Fund Escrow
+                  ) : (
+                    <CreditCard className="h-4 w-4" />
+                  )}
+                  Bayar via Midtrans Sandbox
                 </button>
               ) : null}
               {escrowStatus === "held" ? (

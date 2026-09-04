@@ -5,11 +5,6 @@ import { z } from "zod";
 
 import { activityLogData } from "@/lib/activity-log";
 import { authOptions } from "@/lib/auth";
-import {
-  ExchangeRateUnavailableError,
-  fetchUsdIdrExchangeRate,
-  type UsdIdrExchangeRate,
-} from "@/lib/currency";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -28,6 +23,21 @@ const escrowSelect = {
   exchangeRateTimestamp: true,
   exchangeRateSource: true,
   updatedAt: true,
+  paymentTransactions: {
+    orderBy: { createdAt: "desc" as const },
+    take: 5,
+    select: {
+      id: true,
+      provider: true,
+      providerOrderId: true,
+      providerRedirectUrl: true,
+      amount: true,
+      currency: true,
+      status: true,
+      paidAt: true,
+      createdAt: true,
+    },
+  },
   events: {
     orderBy: { createdAt: "desc" as const },
     take: 6,
@@ -102,44 +112,21 @@ export async function PATCH(
     );
   }
 
+  const action = parsed.data.action;
+
+  if (action === "fund") {
+    return NextResponse.json(
+      {
+        message:
+          "Gunakan Midtrans Sandbox untuk mendanai escrow. Status escrow baru berubah menjadi held setelah payment terkonfirmasi.",
+      },
+      { status: 409 },
+    );
+  }
+
   const { projectId } = await params;
   const actorId = session.user.id;
-  const transition = transitionForAction(parsed.data.action);
-  let exchangeRate: UsdIdrExchangeRate | null = null;
-
-  if (parsed.data.action === "fund") {
-    const existingEscrow = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: {
-        clientId: true,
-        escrow: {
-          select: {
-            exchangeRateSnapshot: true,
-          },
-        },
-      },
-    });
-
-    if (existingEscrow?.clientId === actorId && !existingEscrow.escrow?.exchangeRateSnapshot) {
-      exchangeRate = await fetchUsdIdrExchangeRate().catch((error: unknown) => {
-        if (error instanceof ExchangeRateUnavailableError) {
-          return null;
-        }
-
-        throw error;
-      });
-
-      if (!exchangeRate) {
-        return NextResponse.json(
-          {
-            message:
-              "Kurs USD-IDR belum tersedia. Fund escrow dibatalkan agar nilai payout tidak berjalan tanpa snapshot kurs.",
-          },
-          { status: 503 },
-        );
-      }
-    }
-  }
+  const transition = transitionForAction(action);
 
   const result = await prisma.$transaction(async (tx) => {
     const project = await tx.project.findUnique({
@@ -172,66 +159,7 @@ export async function PATCH(
       return { error: NextResponse.json({ message: "Tidak punya akses ke escrow project ini." }, { status: 403 }) };
     }
 
-    let escrow = project.escrow;
-
-    if (!escrow) {
-      if (!exchangeRate) {
-        return {
-          error: NextResponse.json(
-            {
-              message:
-                "Kurs USD-IDR belum tersedia. Escrow belum bisa dibuat tanpa snapshot kurs.",
-            },
-            { status: 503 },
-          ),
-        };
-      }
-
-      escrow = await tx.escrow.create({
-        data: {
-          projectId: project.id,
-          amount: project.budget,
-          currency: project.currency,
-          status: "pending",
-          paymentMethod: "master_account",
-          exchangeRateSnapshot: exchangeRate.rate,
-          exchangeRateTimestamp: exchangeRate.timestamp,
-          exchangeRateSource: exchangeRate.source,
-          events: {
-            create: {
-              actorId,
-              actorRole: "client",
-              fromStatus: null,
-              toStatus: "pending",
-              note: "Escrow dibuat untuk project lama yang belum punya escrow.",
-            },
-          },
-        },
-        select: {
-          id: true,
-          status: true,
-          exchangeRateSnapshot: true,
-        },
-      });
-
-      await tx.activityLog.create({
-        data: activityLogData({
-          actorId,
-          actorRole: "client",
-          action: "escrow.created",
-          entityType: "escrow",
-          entityId: escrow.id,
-          metadata: {
-            projectId: project.id,
-            amount: project.budget,
-            currency: project.currency,
-            status: escrow.status,
-            exchangeRateSnapshot: escrow.exchangeRateSnapshot?.toString() ?? null,
-            exchangeRateSource: exchangeRate.source,
-          },
-        }),
-      });
-    }
+    const escrow = project.escrow;
 
     if (!escrow) {
       return {
@@ -282,19 +210,7 @@ export async function PATCH(
       where: { id: currentEscrow.id },
       data: {
         status: transition.to,
-        paymentMethod:
-          parsed.data.action === "release"
-            ? "milestone_payout"
-            : "master_account",
-        ...(parsed.data.action === "fund" &&
-        !currentEscrow.exchangeRateSnapshot &&
-        exchangeRate
-          ? {
-              exchangeRateSnapshot: exchangeRate.rate,
-              exchangeRateTimestamp: exchangeRate.timestamp,
-              exchangeRateSource: exchangeRate.source,
-            }
-          : {}),
+        paymentMethod: "milestone_payout",
         events: {
           create: {
             actorId,
@@ -312,8 +228,7 @@ export async function PATCH(
       data: activityLogData({
         actorId,
         actorRole: "client",
-        action:
-          parsed.data.action === "fund" ? "escrow.funded" : "escrow.released",
+        action: "escrow.released",
         entityType: "escrow",
         entityId: updatedEscrow.id,
         metadata: {

@@ -71,6 +71,21 @@ export default async function WorkspaceProjectPage({
           exchangeRateSnapshot: true,
           exchangeRateTimestamp: true,
           exchangeRateSource: true,
+          paymentTransactions: {
+            orderBy: { createdAt: "desc" },
+            take: 5,
+            select: {
+              id: true,
+              provider: true,
+              providerOrderId: true,
+              providerRedirectUrl: true,
+              amount: true,
+              currency: true,
+              status: true,
+              paidAt: true,
+              createdAt: true,
+            },
+          },
           events: {
             orderBy: { createdAt: "desc" },
             take: 6,
@@ -170,6 +185,12 @@ export default async function WorkspaceProjectPage({
                     : null,
                   exchangeRateTimestamp:
                     project.escrow.exchangeRateTimestamp?.toISOString() ?? null,
+                  paymentTransactions:
+                    project.escrow.paymentTransactions.map((payment) => ({
+                      ...payment,
+                      paidAt: payment.paidAt?.toISOString() ?? null,
+                      createdAt: payment.createdAt.toISOString(),
+                    })),
                   events: project.escrow.events.map((event) => ({
                     ...event,
                     createdAt: event.createdAt.toISOString(),

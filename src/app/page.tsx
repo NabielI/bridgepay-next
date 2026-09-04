@@ -3,7 +3,6 @@ import { getServerSession } from "next-auth";
 import {
   ArrowRight,
   BadgeCheck,
-  BriefcaseBusiness,
   Globe2,
   Quote,
   ShieldCheck,

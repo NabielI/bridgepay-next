@@ -46,6 +46,7 @@ enum EscrowStatus {
 
 enum EscrowPaymentMethod {
   master_account
+  midtrans_snap
   qris_cross_border
   milestone_payout
 }
@@ -244,6 +245,30 @@ model Escrow {
 
   project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   events  EscrowEvent[]
+  paymentTransactions PaymentTransaction[]
+}
+
+model PaymentTransaction {
+  id                    String    @id @default(cuid())
+  escrowId              String
+  provider              String    @default("midtrans")
+  providerOrderId       String    @unique
+  providerTransactionId String?   @unique
+  providerToken         String?
+  providerRedirectUrl   String?
+  amount                Int
+  currency              String    @default("IDR")
+  status                String    @default("pending")
+  rawResponse           Json?
+  rawNotification       Json?
+  paidAt                DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  escrow Escrow @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+
+  @@index([escrowId, createdAt])
+  @@index([status, createdAt])
 }
 
 model EscrowEvent {
