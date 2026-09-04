@@ -651,6 +651,12 @@ export function AuthFlow({ mode }: AuthFlowProps) {
                       )}
                     </button>
                   </span>
+                  <Link
+                    href="/forgot-password"
+                    className="mt-2 block text-right text-sm font-semibold text-primary hover:underline"
+                  >
+                    Lupa Password?
+                  </Link>
                 </label>
               </div>
               <button
