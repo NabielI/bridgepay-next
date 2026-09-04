@@ -220,6 +220,25 @@ export function AuthFlow({ mode }: AuthFlowProps) {
     router.refresh();
   }
 
+  async function checkLoginLockout(email: string) {
+    const response = await fetch("/api/auth/login-lockout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const payload = (await response.json().catch(() => null)) as {
+      locked?: boolean;
+      minutesRemaining?: number;
+    } | null;
+
+    if (payload?.locked) {
+      const minutes = payload.minutesRemaining ?? 1;
+      return `Terlalu banyak percobaan gagal, coba lagi dalam ${minutes} menit`;
+    }
+
+    return null;
+  }
+
   async function handleRegisterComplete() {
     if (!kycUploaded) {
       setMessage("Upload dokumen KYC dulu untuk menyelesaikan pendaftaran.");
@@ -257,6 +276,14 @@ export function AuthFlow({ mode }: AuthFlowProps) {
     setPending(true);
     setMessage(null);
 
+    const existingLockout = await checkLoginLockout(form.email);
+
+    if (existingLockout) {
+      setPending(false);
+      setMessage(existingLockout);
+      return;
+    }
+
     const result = await signIn("credentials", {
       email: form.email,
       password: form.password,
@@ -266,7 +293,8 @@ export function AuthFlow({ mode }: AuthFlowProps) {
     setPending(false);
 
     if (!result?.ok) {
-      setMessage("Email atau password salah.");
+      const currentLockout = await checkLoginLockout(form.email);
+      setMessage(currentLockout ?? "Email atau password salah.");
       return;
     }
 
@@ -455,6 +483,14 @@ export function AuthFlow({ mode }: AuthFlowProps) {
                     placeholder="+62 812 0000 0000"
                   />
                 </label>
+              </div>
+              <div className="mt-3 text-right">
+                <Link
+                  href="/forgot-password"
+                  className="text-sm font-semibold text-primary hover:underline"
+                >
+                  Lupa password?
+                </Link>
               </div>
               <button
                 type="submit"

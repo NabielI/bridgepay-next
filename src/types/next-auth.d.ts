@@ -8,12 +8,14 @@ declare module "next-auth" {
       id?: string;
       role?: Role;
       kycStatus?: KycStatus;
+      sessionVersion?: number;
     } & DefaultSession["user"];
   }
 
   interface User {
     role?: Role;
     kycStatus?: KycStatus;
+    sessionVersion?: number;
   }
 }
 
@@ -22,5 +24,7 @@ declare module "next-auth/jwt" {
     id?: string;
     role?: Role;
     kycStatus?: KycStatus;
+    sessionVersion?: number;
+    sessionInvalid?: boolean;
   }
 }

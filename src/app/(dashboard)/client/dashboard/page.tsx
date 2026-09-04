@@ -69,6 +69,23 @@ export default async function ClientDashboardPage() {
             paymentMethod: true,
           },
         },
+        applications: {
+          where: { status: "pending" },
+          orderBy: { createdAt: "asc" },
+          take: 3,
+          select: {
+            id: true,
+            status: true,
+            createdAt: true,
+            freelancer: {
+              select: {
+                name: true,
+                email: true,
+                kycStatus: true,
+              },
+            },
+          },
+        },
       },
     }),
   ]);
@@ -88,6 +105,10 @@ export default async function ClientDashboardPage() {
         ...project,
         deadline: project.deadline.toISOString(),
         createdAt: project.createdAt.toISOString(),
+        applications: project.applications.map((application) => ({
+          ...application,
+          createdAt: application.createdAt.toISOString(),
+        })),
       }))}
     />
   );

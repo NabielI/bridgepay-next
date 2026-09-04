@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { activityLogData } from "@/lib/activity-log";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -39,6 +40,9 @@ export async function PATCH(
     return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
   }
 
+  const actorId = session.user.id;
+  const actorRole = session.user.role;
+
   const body = await request.json().catch(() => null);
   const parsed = reviewSchema.safeParse(body);
 
@@ -56,7 +60,7 @@ export async function PATCH(
   const submission = await prisma.kycSubmission.findFirst({
     where: {
       id: submissionId,
-      userId: session.user.id,
+      userId: actorId,
     },
     select: {
       id: true,
@@ -78,24 +82,43 @@ export async function PATCH(
       ? "Mock approval demo: dokumen terlihat valid."
       : "Mock rejection demo: dokumen perlu diperbaiki.");
 
-  const [updatedSubmission] = await prisma.$transaction([
-    prisma.kycSubmission.update({
+  const updatedSubmission = await prisma.$transaction(async (tx) => {
+    const reviewedSubmission = await tx.kycSubmission.update({
       where: { id: submission.id },
       data: {
         status: nextStatus,
         reviewNote,
-        reviewerId: session.user.id,
-        reviewerRole: session.user.role,
+        reviewerId: actorId,
+        reviewerRole: actorRole,
         reviewedAt: new Date(),
       },
       select: kycSubmissionSelect,
-    }),
-    prisma.user.update({
-      where: { id: session.user.id },
+    });
+
+    await tx.user.update({
+      where: { id: actorId },
       data: { kycStatus: nextStatus },
       select: { id: true },
-    }),
-  ]);
+    });
+
+    await tx.activityLog.create({
+      data: activityLogData({
+        actorId,
+        actorRole,
+        action:
+          nextStatus === "verified" ? "kyc.verified" : "kyc.rejected",
+        entityType: "kycSubmission",
+        entityId: reviewedSubmission.id,
+        metadata: {
+          userId: submission.userId,
+          status: reviewedSubmission.status,
+          reviewNote,
+        },
+      }),
+    });
+
+    return reviewedSubmission;
+  });
 
   return NextResponse.json({
     kycStatus: nextStatus,

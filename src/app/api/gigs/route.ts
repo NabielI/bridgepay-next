@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 
+import { activityLogData } from "@/lib/activity-log";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -82,6 +83,9 @@ export async function POST(request: Request) {
     );
   }
 
+  const actorId = session.user.id;
+  const actorRole = session.user.role;
+
   const body = await request.json().catch(() => null);
   const parsed = gigPublishSchema.safeParse(body);
 
@@ -99,7 +103,7 @@ export async function POST(request: Request) {
     ? await prisma.gigDraft.findFirst({
         where: {
           id: parsed.data.draftId,
-          freelancerId: session.user.id,
+          freelancerId: actorId,
         },
         select: { id: true },
       })
@@ -112,29 +116,50 @@ export async function POST(request: Request) {
     );
   }
 
-  const gig = await prisma.gig.create({
-    data: {
-      freelancerId: session.user.id,
-      title: parsed.data.title,
-      description: parsed.data.description,
-      category: parsed.data.category,
-      skills: parsed.data.skills,
-      startingPrice: parsed.data.startingPrice,
-      currency: parsed.data.currency,
-      packages: parsed.data.packages as unknown as Prisma.InputJsonValue,
-      deliverables: parsed.data.deliverables,
-      status: "published",
-    },
-    select: gigSelect,
-  });
-
-  if (draft) {
-    await prisma.gigDraft.update({
-      where: { id: draft.id },
-      data: { gigId: gig.id },
-      select: { id: true },
+  const gig = await prisma.$transaction(async (tx) => {
+    const createdGig = await tx.gig.create({
+      data: {
+        freelancerId: actorId,
+        title: parsed.data.title,
+        description: parsed.data.description,
+        category: parsed.data.category,
+        skills: parsed.data.skills,
+        startingPrice: parsed.data.startingPrice,
+        currency: parsed.data.currency,
+        packages: parsed.data.packages as unknown as Prisma.InputJsonValue,
+        deliverables: parsed.data.deliverables,
+        status: "published",
+      },
+      select: gigSelect,
     });
-  }
+
+    if (draft) {
+      await tx.gigDraft.update({
+        where: { id: draft.id },
+        data: { gigId: createdGig.id },
+        select: { id: true },
+      });
+    }
+
+    await tx.activityLog.create({
+      data: activityLogData({
+        actorId,
+        actorRole,
+        action: "gig.published",
+        entityType: "gig",
+        entityId: createdGig.id,
+        metadata: {
+          draftId: draft?.id ?? null,
+          category: createdGig.category,
+          startingPrice: createdGig.startingPrice,
+          currency: createdGig.currency,
+          status: createdGig.status,
+        },
+      }),
+    });
+
+    return createdGig;
+  });
 
   return NextResponse.json(
     {

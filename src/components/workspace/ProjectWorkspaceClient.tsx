@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { FormEvent, useState } from "react";
 
+import { convertUsdToIdr } from "@/lib/currency";
+
 interface WorkspaceProject {
   id: string;
   title: string;
@@ -20,6 +22,7 @@ interface WorkspaceProject {
   currency: string;
   deadline: string;
   status: string;
+  assignedFreelancerKycStatus: "pending" | "verified" | "rejected" | null;
   client: {
     name: string | null;
     email: string;
@@ -34,6 +37,9 @@ interface WorkspaceEscrow {
   currency: string;
   status: "pending" | "held" | "released";
   paymentMethod: string;
+  exchangeRateSnapshot: number | null;
+  exchangeRateTimestamp: string | null;
+  exchangeRateSource: string | null;
   events: WorkspaceEscrowEvent[];
 }
 
@@ -81,6 +87,12 @@ interface ProjectWorkspaceClientProps {
   project: WorkspaceProject;
   initialMessages: WorkspaceMessage[];
   initialFiles: WorkspaceProjectFile[];
+  todayExchangeRate: {
+    rate: number;
+    timestamp: string;
+    source: string;
+  } | null;
+  viewerKycStatus: "pending" | "verified" | "rejected" | null;
 }
 
 function roleLabel(role: WorkspaceMessage["senderRole"]) {
@@ -149,11 +161,35 @@ function formatFileSize(size: number) {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function formatUsd(amount: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function formatIdr(amount: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function formatRate(rate: number) {
+  return new Intl.NumberFormat("id-ID", {
+    maximumFractionDigits: 2,
+  }).format(rate);
+}
+
 export function ProjectWorkspaceClient({
   role,
   project,
   initialMessages,
   initialFiles,
+  todayExchangeRate,
+  viewerKycStatus,
 }: ProjectWorkspaceClientProps) {
   const [messages, setMessages] = useState<WorkspaceMessage[]>(initialMessages);
   const [files, setFiles] = useState<WorkspaceProjectFile[]>(initialFiles);
@@ -172,6 +208,22 @@ export function ProjectWorkspaceClient({
   const escrowStatus = escrow?.status ?? "pending";
   const escrowEvents = escrow?.events ?? [];
   const uploadKind = role === "freelancer" ? "deliverable" : "reference";
+  const escrowAmount = escrow?.amount ?? project.budget;
+  const lockedRate = escrow?.exchangeRateSnapshot ?? null;
+  const lockedIdrAmount = lockedRate
+    ? convertUsdToIdr(escrowAmount, lockedRate)
+    : null;
+  const todayIdrAmount = todayExchangeRate
+    ? convertUsdToIdr(escrowAmount, todayExchangeRate.rate)
+    : null;
+  const kycReleaseMessage =
+    "Verifikasi KYC diperlukan sebelum dapat menerima pencairan dana.";
+  const freelancerNeedsKyc =
+    role === "freelancer" && viewerKycStatus !== "verified";
+  const assignedFreelancerNeedsKyc =
+    role === "client" &&
+    project.assignedFreelancerKycStatus !== null &&
+    project.assignedFreelancerKycStatus !== "verified";
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -352,7 +404,7 @@ export function ProjectWorkspaceClient({
                   </div>
                   <p>
                     {translated
-                      ? message.translatedBody ?? `Translated draft: ${message.body}`
+                      ? message.translatedBody ?? "Translation unavailable."
                       : message.body}
                   </p>
                 </article>
@@ -445,17 +497,77 @@ export function ProjectWorkspaceClient({
 
           <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm text-slate-700">
             <div className="font-semibold text-slate-950">
-              {escrow?.currency ?? project.currency}{" "}
-              {(escrow?.amount ?? project.budget).toLocaleString("en-US")}
+              Jumlah asli: {formatUsd(escrowAmount)}
             </div>
             <div className="mt-1 text-xs text-slate-500">
               Method: {escrow?.paymentMethod ?? "master_account"}
+            </div>
+            <div className="mt-4 grid gap-3">
+              <div className="rounded-xl border border-teal-100 bg-white p-3">
+                <div className="text-xs font-semibold text-primary">
+                  Kurs saat kesepakatan (terkunci)
+                </div>
+                {lockedRate ? (
+                  <>
+                    <div className="mt-1 font-bold text-slate-950">
+                      1 USD = IDR {formatRate(lockedRate)}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      Payout terkunci: {formatIdr(lockedIdrAmount ?? 0)}
+                    </div>
+                    {escrow?.exchangeRateTimestamp ? (
+                      <div className="mt-1 text-xs text-slate-500">
+                        Dikunci {formatTimestamp(escrow.exchangeRateTimestamp)}
+                      </div>
+                    ) : null}
+                    {escrow?.exchangeRateSource ? (
+                      <div className="mt-1 text-xs text-slate-500">
+                        Source: {escrow.exchangeRateSource}
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <div className="mt-1 text-sm font-semibold text-amber-700">
+                    Belum ada snapshot kurs. Fund escrow akan mengambil kurs
+                    saat itu sebelum dana ditahan.
+                  </div>
+                )}
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <div className="text-xs font-semibold text-slate-500">
+                  Kurs hari ini (informasi)
+                </div>
+                {todayExchangeRate ? (
+                  <>
+                    <div className="mt-1 font-bold text-slate-950">
+                      1 USD = IDR {formatRate(todayExchangeRate.rate)}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      Nilai jika memakai kurs hari ini:{" "}
+                      {formatIdr(todayIdrAmount ?? 0)}
+                    </div>
+                    <div className="mt-1 text-xs text-slate-500">
+                      Source: {todayExchangeRate.source}
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-1 text-sm text-slate-500">
+                    Kurs hari ini belum tersedia.
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
           {escrowError ? (
             <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               {escrowError}
+            </div>
+          ) : null}
+
+          {freelancerNeedsKyc || assignedFreelancerNeedsKyc ? (
+            <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+              {kycReleaseMessage}
             </div>
           ) : null}
 
@@ -479,7 +591,7 @@ export function ProjectWorkspaceClient({
                 <button
                   type="button"
                   onClick={() => updateEscrow("release")}
-                  disabled={Boolean(escrowPending)}
+                  disabled={Boolean(escrowPending) || assignedFreelancerNeedsKyc}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-navy-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                   data-testid="escrow-release"
                 >

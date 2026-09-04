@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { activityLogData } from "@/lib/activity-log";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -136,6 +137,21 @@ export async function PATCH(
         select: reviewedApplicationSelect,
       });
 
+      await tx.activityLog.create({
+        data: activityLogData({
+          actorId: session.user.id,
+          actorRole: "client",
+          action: "application.rejected",
+          entityType: "projectApplication",
+          entityId: rejectedApplication.id,
+          metadata: {
+            projectId,
+            freelancerId: application.freelancerId,
+            status: rejectedApplication.status,
+          },
+        }),
+      });
+
       return { application: rejectedApplication };
     }
 
@@ -182,6 +198,22 @@ export async function PATCH(
       where: { id: application.id },
       data: { status: "accepted" },
       select: reviewedApplicationSelect,
+    });
+
+    await tx.activityLog.create({
+      data: activityLogData({
+        actorId: session.user.id,
+        actorRole: "client",
+        action: "application.accepted",
+        entityType: "projectApplication",
+        entityId: acceptedApplication.id,
+        metadata: {
+          projectId,
+          freelancerId: application.freelancerId,
+          projectStatus: acceptedApplication.project.status,
+          assignedFreelancerId: acceptedApplication.project.assignedFreelancerId,
+        },
+      }),
     });
 
     return { application: acceptedApplication };

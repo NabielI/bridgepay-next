@@ -19,7 +19,7 @@ export default async function FreelancerDashboardPage() {
     redirect(dashboardPathForRole(session.user.role));
   }
 
-  const [profile, projects, gigs] = await Promise.all([
+  const [profile, projects, gigs, applications] = await Promise.all([
     prisma.user.findUniqueOrThrow({
       where: { id: session.user.id },
       select: {
@@ -102,6 +102,34 @@ export default async function FreelancerDashboardPage() {
         updatedAt: true,
       },
     }),
+    prisma.projectApplication.findMany({
+      where: { freelancerId: session.user.id },
+      orderBy: { updatedAt: "desc" },
+      take: 6,
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+        project: {
+          select: {
+            id: true,
+            title: true,
+            category: true,
+            budget: true,
+            currency: true,
+            status: true,
+            client: {
+              select: {
+                name: true,
+                email: true,
+                company: true,
+              },
+            },
+          },
+        },
+      },
+    }),
   ]);
 
   return (
@@ -126,6 +154,11 @@ export default async function FreelancerDashboardPage() {
         createdAt: gig.createdAt.toISOString(),
         updatedAt: gig.updatedAt.toISOString(),
       })) satisfies PublishedGig[]}
+      applications={applications.map((application) => ({
+        ...application,
+        createdAt: application.createdAt.toISOString(),
+        updatedAt: application.updatedAt.toISOString(),
+      }))}
     />
   );
 }

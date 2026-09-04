@@ -3,6 +3,10 @@ import { notFound, redirect } from "next/navigation";
 
 import { ProjectWorkspaceClient } from "@/components/workspace/ProjectWorkspaceClient";
 import { authOptions } from "@/lib/auth";
+import {
+  ExchangeRateUnavailableError,
+  fetchUsdIdrExchangeRate,
+} from "@/lib/currency";
 import { canAccessProjectWorkspace } from "@/lib/project-access";
 import { prisma } from "@/lib/prisma";
 
@@ -45,6 +49,11 @@ export default async function WorkspaceProjectPage({
       status: true,
       clientId: true,
       assignedFreelancerId: true,
+      assignedFreelancer: {
+        select: {
+          kycStatus: true,
+        },
+      },
       client: {
         select: {
           name: true,
@@ -59,6 +68,9 @@ export default async function WorkspaceProjectPage({
           currency: true,
           status: true,
           paymentMethod: true,
+          exchangeRateSnapshot: true,
+          exchangeRateTimestamp: true,
+          exchangeRateSource: true,
           events: {
             orderBy: { createdAt: "desc" },
             take: 6,
@@ -112,6 +124,16 @@ export default async function WorkspaceProjectPage({
     redirect("/discovery");
   }
 
+  const todayExchangeRate = await fetchUsdIdrExchangeRate().catch(
+    (error: unknown) => {
+      if (error instanceof ExchangeRateUnavailableError) {
+        return null;
+      }
+
+      throw error;
+    },
+  );
+
   return (
     <section className="mx-auto grid max-w-6xl gap-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft">
@@ -137,10 +159,17 @@ export default async function WorkspaceProjectPage({
             currency: project.currency,
             deadline: project.deadline.toISOString(),
             status: project.status,
+            assignedFreelancerKycStatus:
+              project.assignedFreelancer?.kycStatus ?? null,
             client: project.client,
             escrow: project.escrow
               ? {
                   ...project.escrow,
+                  exchangeRateSnapshot: project.escrow.exchangeRateSnapshot
+                    ? Number(project.escrow.exchangeRateSnapshot)
+                    : null,
+                  exchangeRateTimestamp:
+                    project.escrow.exchangeRateTimestamp?.toISOString() ?? null,
                   events: project.escrow.events.map((event) => ({
                     ...event,
                     createdAt: event.createdAt.toISOString(),
@@ -156,6 +185,16 @@ export default async function WorkspaceProjectPage({
             ...file,
             createdAt: file.createdAt.toISOString(),
           }))}
+          todayExchangeRate={
+            todayExchangeRate
+              ? {
+                  rate: todayExchangeRate.rate,
+                  timestamp: todayExchangeRate.timestamp.toISOString(),
+                  source: todayExchangeRate.source,
+                }
+              : null
+          }
+          viewerKycStatus={session.user.kycStatus ?? null}
         />
       </section>
   );

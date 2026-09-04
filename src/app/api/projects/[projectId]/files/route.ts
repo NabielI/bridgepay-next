@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { activityLogData } from "@/lib/activity-log";
 import { authOptions } from "@/lib/auth";
 import { canAccessProjectWorkspace } from "@/lib/project-access";
 import { prisma } from "@/lib/prisma";
@@ -175,18 +176,39 @@ export async function POST(
     );
   }
 
-  const projectFile = await prisma.projectFile.create({
-    data: {
-      projectId: access.project.id,
-      uploaderId: access.userId,
-      uploaderRole: access.role,
-      kind: parsedKind.data,
-      fileName: file.name,
-      storagePath,
-      mimeType: file.type || "application/octet-stream",
-      size: file.size,
-    },
-    select: fileSelect,
+  const projectFile = await prisma.$transaction(async (tx) => {
+    const createdFile = await tx.projectFile.create({
+      data: {
+        projectId: access.project.id,
+        uploaderId: access.userId,
+        uploaderRole: access.role,
+        kind: parsedKind.data,
+        fileName: file.name,
+        storagePath,
+        mimeType: file.type || "application/octet-stream",
+        size: file.size,
+      },
+      select: fileSelect,
+    });
+
+    await tx.activityLog.create({
+      data: activityLogData({
+        actorId: access.userId,
+        actorRole: access.role,
+        action: "projectFile.uploaded",
+        entityType: "projectFile",
+        entityId: createdFile.id,
+        metadata: {
+          projectId: access.project.id,
+          kind: createdFile.kind,
+          fileName: createdFile.fileName,
+          mimeType: createdFile.mimeType,
+          size: createdFile.size,
+        },
+      }),
+    });
+
+    return createdFile;
   });
 
   return NextResponse.json({ file: projectFile }, { status: 201 });

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 
+import { activityLogData } from "@/lib/activity-log";
 import { authOptions } from "@/lib/auth";
 import { generateGigDraft } from "@/lib/gig-generator";
 import { prisma } from "@/lib/prisma";
@@ -41,6 +42,9 @@ export async function POST(request: Request) {
     );
   }
 
+  const actorId = session.user.id;
+  const actorRole = session.user.role;
+
   const body = await request.json().catch(() => null);
   const parsed = gigGenerateSchema.safeParse(body);
 
@@ -58,32 +62,52 @@ export async function POST(request: Request) {
     ...parsed.data,
     currency: "USD",
   });
-  const draft = await prisma.gigDraft.create({
-    data: {
-      freelancerId: session.user.id,
-      brief: parsed.data.brief,
-      category: parsed.data.category,
-      skills: parsed.data.skills,
-      targetClient: parsed.data.targetClient,
-      tone: parsed.data.tone,
-      startingPrice: generated.startingPrice,
-      currency: generated.currency,
-      generated: generated as unknown as Prisma.InputJsonValue,
-      generationMode: "template",
-    },
-    select: {
-      id: true,
-      brief: true,
-      category: true,
-      skills: true,
-      targetClient: true,
-      tone: true,
-      startingPrice: true,
-      currency: true,
-      generated: true,
-      generationMode: true,
-      createdAt: true,
-    },
+  const draft = await prisma.$transaction(async (tx) => {
+    const createdDraft = await tx.gigDraft.create({
+      data: {
+        freelancerId: actorId,
+        brief: parsed.data.brief,
+        category: parsed.data.category,
+        skills: parsed.data.skills,
+        targetClient: parsed.data.targetClient,
+        tone: parsed.data.tone,
+        startingPrice: generated.startingPrice,
+        currency: generated.currency,
+        generated: generated as unknown as Prisma.InputJsonValue,
+        generationMode: "template",
+      },
+      select: {
+        id: true,
+        brief: true,
+        category: true,
+        skills: true,
+        targetClient: true,
+        tone: true,
+        startingPrice: true,
+        currency: true,
+        generated: true,
+        generationMode: true,
+        createdAt: true,
+      },
+    });
+
+    await tx.activityLog.create({
+      data: activityLogData({
+        actorId,
+        actorRole,
+        action: "gigDraft.generated",
+        entityType: "gigDraft",
+        entityId: createdDraft.id,
+        metadata: {
+          category: createdDraft.category,
+          startingPrice: createdDraft.startingPrice,
+          currency: createdDraft.currency,
+          generationMode: createdDraft.generationMode,
+        },
+      }),
+    });
+
+    return createdDraft;
   });
 
   return NextResponse.json({

@@ -5,6 +5,10 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { canAccessProjectWorkspace } from "@/lib/project-access";
 import { prisma } from "@/lib/prisma";
+import {
+  TranslationUnavailableError,
+  translateText,
+} from "@/lib/translation";
 
 export const runtime = "nodejs";
 
@@ -25,20 +29,6 @@ const messageSelect = {
     },
   },
 };
-
-function translateMessage(body: string) {
-  const normalized = body.toLowerCase();
-
-  if (normalized.includes("milestone")) {
-    return "Mari kita bahas milestone proyek ini dan status berikutnya.";
-  }
-
-  if (normalized.includes("revisi") || normalized.includes("revision")) {
-    return "The revision notes have been received and will be reviewed.";
-  }
-
-  return `Translated draft: ${body}`;
-}
 
 async function getAccessibleProject(projectId: string) {
   const session = await getServerSession(authOptions);
@@ -114,13 +104,33 @@ export async function POST(
     );
   }
 
+  const translatedBody = await translateText(parsed.data.body).catch(
+    (error: unknown) => {
+      if (error instanceof TranslationUnavailableError) {
+        return null;
+      }
+
+      throw error;
+    },
+  );
+
+  if (!translatedBody) {
+    return NextResponse.json(
+      {
+        message:
+          "Translation gagal diproses. Pesan belum disimpan agar tidak menampilkan hasil terjemahan palsu.",
+      },
+      { status: 503 },
+    );
+  }
+
   const message = await prisma.message.create({
     data: {
       projectId: access.project.id,
       senderId: access.userId,
       senderRole: access.role,
       body: parsed.data.body,
-      translatedBody: translateMessage(parsed.data.body),
+      translatedBody,
     },
     select: messageSelect,
   });

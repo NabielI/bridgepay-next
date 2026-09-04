@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { activityLogData } from "@/lib/activity-log";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -103,6 +104,9 @@ export async function POST(
     );
   }
 
+  const actorId = session.user.id;
+  const actorRole = session.user.role;
+
   const body = await request.json().catch(() => ({}));
   const parsed = applicationSchema.safeParse(body);
 
@@ -133,7 +137,7 @@ export async function POST(
     );
   }
 
-  if (project.clientId === session.user.id) {
+  if (project.clientId === actorId) {
     return NextResponse.json(
       { message: "Client pemilik project tidak bisa apply sebagai freelancer." },
       { status: 403 },
@@ -151,7 +155,7 @@ export async function POST(
     where: {
       projectId_freelancerId: {
         projectId: project.id,
-        freelancerId: session.user.id,
+        freelancerId: actorId,
       },
     },
     select: applicationSelect,
@@ -167,13 +171,32 @@ export async function POST(
     );
   }
 
-  const application = await prisma.projectApplication.create({
-    data: {
-      projectId: project.id,
-      freelancerId: session.user.id,
-      coverLetter: parsed.data.coverLetter || null,
-    },
-    select: applicationSelect,
+  const application = await prisma.$transaction(async (tx) => {
+    const createdApplication = await tx.projectApplication.create({
+      data: {
+        projectId: project.id,
+        freelancerId: actorId,
+        coverLetter: parsed.data.coverLetter || null,
+      },
+      select: applicationSelect,
+    });
+
+    await tx.activityLog.create({
+      data: activityLogData({
+        actorId,
+        actorRole,
+        action: "application.submitted",
+        entityType: "projectApplication",
+        entityId: createdApplication.id,
+        metadata: {
+          projectId: project.id,
+          freelancerId: actorId,
+          status: createdApplication.status,
+        },
+      }),
+    });
+
+    return createdApplication;
   });
 
   return NextResponse.json(

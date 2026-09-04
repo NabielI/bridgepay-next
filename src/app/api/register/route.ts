@@ -2,6 +2,7 @@ import bcrypt from "bcrypt";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { activityLogData } from "@/lib/activity-log";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -62,26 +63,44 @@ export async function POST(request: Request) {
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const user = await prisma.user.create({
-    data: {
-      ...profile,
-      email,
-      passwordHash,
-      role,
-      kycStatus: "pending",
-      skills: role === "freelancer" ? splitSkills(onboarding?.skills) : [],
-      rate: role === "freelancer" ? onboarding?.rate : null,
-      company: role === "client" ? onboarding?.company : null,
-      budget: role === "client" ? onboarding?.budget : null,
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      kycStatus: true,
-      createdAt: true,
-    },
+  const user = await prisma.$transaction(async (tx) => {
+    const createdUser = await tx.user.create({
+      data: {
+        ...profile,
+        email,
+        passwordHash,
+        role,
+        kycStatus: "pending",
+        skills: role === "freelancer" ? splitSkills(onboarding?.skills) : [],
+        rate: role === "freelancer" ? onboarding?.rate : null,
+        company: role === "client" ? onboarding?.company : null,
+        budget: role === "client" ? onboarding?.budget : null,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        kycStatus: true,
+        createdAt: true,
+      },
+    });
+
+    await tx.activityLog.create({
+      data: activityLogData({
+        actorId: createdUser.id,
+        actorRole: createdUser.role,
+        action: "user.registered",
+        entityType: "user",
+        entityId: createdUser.id,
+        metadata: {
+          email: createdUser.email,
+          kycStatus: createdUser.kycStatus,
+        },
+      }),
+    });
+
+    return createdUser;
   });
 
   return NextResponse.json({ user }, { status: 201 });

@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
+import { activityLogData } from "@/lib/activity-log";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -29,7 +30,7 @@ const kycSubmissionSelect = {
 export async function GET() {
   const session = await getServerSession(authOptions);
 
-  if (!session?.user?.id) {
+  if (!session?.user?.id || !session.user.role) {
     return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
   }
 
@@ -53,9 +54,12 @@ export async function GET() {
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
 
-  if (!session?.user?.id) {
+  if (!session?.user?.id || !session.user.role) {
     return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
   }
+
+  const actorId = session.user.id;
+  const actorRole = session.user.role;
 
   const formData = await request.formData().catch(() => null);
 
@@ -90,7 +94,7 @@ export async function POST(request: Request) {
   }
 
   const safeFileName = sanitizeFileName(file.name) || "kyc-document";
-  const storagePath = `${session.user.id}/${Date.now()}-${randomUUID()}-${safeFileName}`;
+  const storagePath = `${actorId}/${Date.now()}-${randomUUID()}-${safeFileName}`;
   const supabase = await ensureKycDocumentsBucket();
   const { error: uploadError } = await supabase.storage
     .from(KYC_DOCUMENTS_BUCKET)
@@ -107,10 +111,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const [submission] = await prisma.$transaction([
-    prisma.kycSubmission.create({
+  const submission = await prisma.$transaction(async (tx) => {
+    const createdSubmission = await tx.kycSubmission.create({
       data: {
-        userId: session.user.id,
+        userId: actorId,
         fileName: file.name,
         storagePath,
         mimeType: file.type,
@@ -118,13 +122,32 @@ export async function POST(request: Request) {
         status: "pending",
       },
       select: kycSubmissionSelect,
-    }),
-    prisma.user.update({
-      where: { id: session.user.id },
+    });
+
+    await tx.user.update({
+      where: { id: actorId },
       data: { kycStatus: "pending" },
       select: { id: true },
-    }),
-  ]);
+    });
+
+    await tx.activityLog.create({
+      data: activityLogData({
+        actorId,
+        actorRole,
+        action: "kyc.submitted",
+        entityType: "kycSubmission",
+        entityId: createdSubmission.id,
+        metadata: {
+          fileName: createdSubmission.fileName,
+          mimeType: createdSubmission.mimeType,
+          size: createdSubmission.size,
+          status: createdSubmission.status,
+        },
+      }),
+    });
+
+    return createdSubmission;
+  });
 
   return NextResponse.json(
     {

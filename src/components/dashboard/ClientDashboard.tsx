@@ -5,10 +5,12 @@ import {
   CalendarDays,
   ChevronRight,
   DollarSign,
+  FileCheck2,
   FolderKanban,
   Loader2,
   Plus,
   ShieldCheck,
+  WalletCards,
 } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useState } from "react";
@@ -33,6 +35,16 @@ export interface ClientProject {
     status: "pending" | "held" | "released";
     paymentMethod: string;
   } | null;
+  applications: {
+    id: string;
+    status: "pending" | "accepted" | "rejected" | "withdrawn";
+    createdAt: string;
+    freelancer: {
+      name: string | null;
+      email: string;
+      kycStatus: "pending" | "verified" | "rejected";
+    };
+  }[];
   client?: {
     name: string | null;
     email: string;
@@ -99,9 +111,25 @@ export function ClientDashboard({
     budget: "",
     deadline: "",
   });
+  const activeProjects = projects.filter((item) =>
+    ["open", "active"].includes(item.status),
+  ).length;
   const totalBudget = projects.reduce((sum, item) => sum + item.budget, 0);
   const heldEscrow = projects.filter((item) => item.escrow?.status === "held")
     .length;
+  const pendingApplications = projects.flatMap((project) =>
+    project.applications.map((application) => ({
+      ...application,
+      projectId: project.id,
+      projectTitle: project.title,
+    })),
+  );
+  const projectsNeedFunding = projects.filter(
+    (project) => project.escrow?.status === "pending",
+  );
+  const releaseReadyProjects = projects.filter(
+    (project) => project.escrow?.status === "held",
+  );
 
   function updateForm(key: keyof typeof form, value: string) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -191,11 +219,107 @@ export function ClientDashboard({
           </div>
         </header>
 
+        <section className="grid gap-4 lg:grid-cols-[1fr_0.8fr]">
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-950">
+                  Perlu Tindakan
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Review pelamar, funding escrow, dan release milestone.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFormOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-teal-700"
+                data-testid="open-project-form-top"
+              >
+                <Plus className="h-4 w-4" />
+                Proyek Baru
+              </button>
+            </div>
+            <div className="mt-4 grid gap-3">
+              <Link
+                href="/client/projects"
+                className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-4 text-sm transition hover:bg-slate-50"
+              >
+                <div>
+                  <div className="font-bold text-slate-950">
+                    {pendingApplications.length} pelamar pending review
+                  </div>
+                  <div className="mt-1 text-slate-500">
+                    {pendingApplications[0]
+                      ? `${pendingApplications[0].freelancer.name ?? pendingApplications[0].freelancer.email} menunggu di ${pendingApplications[0].projectTitle}`
+                      : "Belum ada pelamar yang menunggu keputusan."}
+                  </div>
+                </div>
+                <FileCheck2 className="h-5 w-5 text-primary" />
+              </Link>
+              <Link
+                href={
+                  projectsNeedFunding[0]
+                    ? `/workspace/${projectsNeedFunding[0].id}`
+                    : "/client/projects"
+                }
+                className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-4 text-sm transition hover:bg-slate-50"
+              >
+                <div>
+                  <div className="font-bold text-slate-950">
+                    {projectsNeedFunding.length} escrow menunggu funding
+                  </div>
+                  <div className="mt-1 text-slate-500">
+                    Fund escrow untuk mengunci kurs dan mulai proteksi milestone.
+                  </div>
+                </div>
+                <WalletCards className="h-5 w-5 text-primary" />
+              </Link>
+              <Link
+                href={
+                  releaseReadyProjects[0]
+                    ? `/workspace/${releaseReadyProjects[0].id}`
+                    : "/client/projects"
+                }
+                className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-4 text-sm transition hover:bg-slate-50"
+              >
+                <div>
+                  <div className="font-bold text-slate-950">
+                    {releaseReadyProjects.length} milestone siap direview
+                  </div>
+                  <div className="mt-1 text-slate-500">
+                    Release tetap memeriksa KYC freelancer sebelum payout.
+                  </div>
+                </div>
+                <ShieldCheck className="h-5 w-5 text-primary" />
+              </Link>
+            </div>
+          </article>
+
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
+            <h2 className="text-lg font-bold text-slate-950">Snapshot Spend</h2>
+            <div className="mt-4 grid gap-3">
+              <div className="rounded-xl bg-slate-50 p-4">
+                <div className="text-sm text-slate-500">Total Budget</div>
+                <div className="mt-1 text-2xl font-bold text-primary">
+                  ${totalBudget.toLocaleString("en-US")}
+                </div>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-4">
+                <div className="text-sm text-slate-500">Escrow Held</div>
+                <div className="mt-1 text-2xl font-bold text-slate-950">
+                  {heldEscrow} project
+                </div>
+              </div>
+            </div>
+          </article>
+        </section>
+
         <div className="grid gap-4 md:grid-cols-3">
           {[
             {
               label: "Project Aktif",
-              value: projects.length,
+              value: activeProjects,
               icon: FolderKanban,
               bars: [36, 54, 68, 52, 84],
             },
@@ -206,9 +330,9 @@ export function ClientDashboard({
               bars: [42, 58, 76, 64, 88],
             },
             {
-              label: "Escrow Held",
-              value: heldEscrow,
-              icon: ShieldCheck,
+              label: "Pending Review",
+              value: pendingApplications.length,
+              icon: FileCheck2,
               bars: [24, 36, 52, 72, 80],
             },
           ].map((item) => (
@@ -237,13 +361,6 @@ export function ClientDashboard({
             </article>
           ))}
         </div>
-
-        <ProfileEditor profile={profile} />
-
-        <KycPanel
-          initialStatus={profile.kycStatus}
-          initialSubmissions={profile.kycSubmissions}
-        />
 
         <section className="rounded-2xl border border-slate-200 bg-white shadow-soft">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 p-5">
@@ -496,6 +613,13 @@ export function ClientDashboard({
             </form>
           </div>
         ) : null}
+
+        <ProfileEditor profile={profile} />
+
+        <KycPanel
+          initialStatus={profile.kycStatus}
+          initialSubmissions={profile.kycSubmissions}
+        />
       </section>
   );
 }

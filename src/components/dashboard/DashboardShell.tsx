@@ -4,6 +4,10 @@ import {
   BadgeCheck,
   BriefcaseBusiness,
   CalendarDays,
+  Clock,
+  DollarSign,
+  FileCheck2,
+  PackageCheck,
   ShieldCheck,
   UserRoundCheck,
 } from "lucide-react";
@@ -32,6 +36,26 @@ interface DashboardProject {
     name: string | null;
     email: string;
     company: string | null;
+  };
+}
+
+interface DashboardApplication {
+  id: string;
+  status: "pending" | "accepted" | "rejected" | "withdrawn";
+  createdAt: string;
+  updatedAt: string;
+  project: {
+    id: string;
+    title: string;
+    category: string;
+    budget: number;
+    currency: string;
+    status: string;
+    client: {
+      name: string | null;
+      email: string;
+      company: string | null;
+    };
   };
 }
 
@@ -65,6 +89,7 @@ interface DashboardShellProps {
   profile: ProfileData;
   projects?: DashboardProject[];
   gigs?: PublishedGig[];
+  applications?: DashboardApplication[];
 }
 
 export function DashboardShell({
@@ -73,20 +98,35 @@ export function DashboardShell({
   profile,
   projects = [],
   gigs = [],
+  applications = [],
 }: DashboardShellProps) {
   const isClient = role === "client";
   const activeProjects = projects.filter((project) =>
-    ["open", "active"].includes(project.status),
+    ["active"].includes(project.status),
   ).length;
-  const heldEscrow = projects.filter((project) => project.escrow?.status === "held")
-    .length;
-  const averageBudget =
-    projects.length > 0
-      ? Math.round(
-          projects.reduce((sum, project) => sum + project.budget, 0) /
-            projects.length,
-        )
+  const releasedEarnings = projects.reduce(
+    (sum, project) =>
+      project.escrow?.status === "released" ? sum + project.escrow.amount : sum,
+    0,
+  );
+  const protectedFunds = projects.reduce(
+    (sum, project) =>
+      project.escrow?.status === "held" ? sum + project.escrow.amount : sum,
+    0,
+  );
+  const pendingApplications = applications.filter(
+    (application) => application.status === "pending",
+  ).length;
+  const acceptedApplications = applications.filter(
+    (application) => application.status === "accepted",
+  ).length;
+  const publishedGigs = gigs.filter((gig) => gig.status === "published");
+  const draftGigs = gigs.filter((gig) => gig.status === "draft").length;
+  const lowestGigPrice =
+    publishedGigs.length > 0
+      ? Math.min(...publishedGigs.map((gig) => gig.startingPrice))
       : 0;
+  const needsKyc = profile.kycStatus !== "verified";
 
   return (
       <section className="mx-auto grid max-w-6xl gap-6">
@@ -107,24 +147,125 @@ export function DashboardShell({
           </div>
         </header>
 
+        <section className="grid gap-4 lg:grid-cols-[1fr_0.8fr]">
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-950">
+                  Perlu Tindakan
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Hal yang paling memengaruhi payout, project, dan peluang baru.
+                </p>
+              </div>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                {[
+                  needsKyc,
+                  pendingApplications > 0,
+                  publishedGigs.length === 0,
+                ].filter(Boolean).length} item
+              </span>
+            </div>
+            <div className="mt-4 grid gap-3">
+              {needsKyc ? (
+                <Link
+                  href="/settings"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm"
+                >
+                  <div>
+                    <div className="font-bold text-amber-900">
+                      Verifikasi KYC diperlukan sebelum dapat menerima pencairan dana.
+                    </div>
+                    <div className="mt-1 text-amber-800">
+                      Status sekarang: {profile.kycStatus}
+                    </div>
+                  </div>
+                  <ShieldCheck className="h-5 w-5 text-amber-700" />
+                </Link>
+              ) : (
+                <div className="flex items-center justify-between gap-3 rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm">
+                  <div>
+                    <div className="font-bold text-primary">
+                      KYC verified
+                    </div>
+                    <div className="mt-1 text-teal-700">
+                      Payout escrow bisa diterima saat milestone released.
+                    </div>
+                  </div>
+                  <ShieldCheck className="h-5 w-5 text-primary" />
+                </div>
+              )}
+              <Link
+                href="/freelancer/projects"
+                className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-4 text-sm transition hover:bg-slate-50"
+              >
+                <div>
+                  <div className="font-bold text-slate-950">
+                    {pendingApplications} lamaran menunggu keputusan
+                  </div>
+                  <div className="mt-1 text-slate-500">
+                    {acceptedApplications} lamaran accepted dari riwayat terbaru.
+                  </div>
+                </div>
+                <Clock className="h-5 w-5 text-primary" />
+              </Link>
+              <Link
+                href="/freelancer/gig-builder"
+                className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-4 text-sm transition hover:bg-slate-50"
+              >
+                <div>
+                  <div className="font-bold text-slate-950">
+                    {publishedGigs.length} gig published
+                  </div>
+                  <div className="mt-1 text-slate-500">
+                    {draftGigs} draft tersimpan untuk dipoles.
+                  </div>
+                </div>
+                <PackageCheck className="h-5 w-5 text-primary" />
+              </Link>
+            </div>
+          </article>
+
+          <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft">
+            <h2 className="text-lg font-bold text-slate-950">Snapshot Earning</h2>
+            <div className="mt-4 grid gap-3">
+              <div className="rounded-xl bg-slate-50 p-4">
+                <div className="text-sm text-slate-500">Saldo Released</div>
+                <div className="mt-1 text-2xl font-bold text-primary">
+                  ${releasedEarnings.toLocaleString("en-US")}
+                </div>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-4">
+                <div className="text-sm text-slate-500">Dana Terproteksi</div>
+                <div className="mt-1 text-2xl font-bold text-slate-950">
+                  ${protectedFunds.toLocaleString("en-US")}
+                </div>
+              </div>
+            </div>
+          </article>
+        </section>
+
         <div className="grid gap-4 md:grid-cols-3">
           {[
             {
-              icon: isClient ? BriefcaseBusiness : UserRoundCheck,
+              icon: UserRoundCheck,
               label: "Proyek Aktif",
               value: activeProjects,
               bars: [40, 72, 56, 86, 64],
             },
             {
-              icon: ShieldCheck,
-              label: "Escrow Held",
-              value: heldEscrow,
+              icon: FileCheck2,
+              label: "Lamaran Pending",
+              value: pendingApplications,
               bars: [24, 44, 52, 68, 76],
             },
             {
-              icon: ShieldCheck,
-              label: "Avg Budget",
-              value: `$${averageBudget.toLocaleString("en-US")}`,
+              icon: DollarSign,
+              label: "Gig Mulai Dari",
+              value:
+                lowestGigPrice > 0
+                  ? `$${lowestGigPrice.toLocaleString("en-US")}`
+                  : "-",
               bars: [35, 54, 62, 48, 80],
             },
           ].map((item) => (
@@ -153,17 +294,6 @@ export function DashboardShell({
             </article>
           ))}
         </div>
-
-        <ProfileEditor profile={profile} />
-
-        <KycPanel
-          initialStatus={profile.kycStatus}
-          initialSubmissions={profile.kycSubmissions}
-        />
-
-        {!isClient ? (
-          <GigBuilder initialGigs={gigs} />
-        ) : null}
 
         {!isClient ? (
           <section className="rounded-2xl border border-slate-200 bg-white shadow-soft">
@@ -239,10 +369,10 @@ export function DashboardShell({
                       </span>
                     </div>
                     <Link
-                      href="/freelancer/projects"
+                      href={`/workspace/${project.id}`}
                       className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                     >
-                      Lihat Status Lamaran
+                      Buka Workspace
                     </Link>
                   </article>
                 ))}
@@ -250,6 +380,63 @@ export function DashboardShell({
             )}
           </section>
         ) : null}
+
+        {!isClient ? (
+          <section className="rounded-2xl border border-slate-200 bg-white shadow-soft">
+            <div className="border-b border-slate-200 p-5">
+              <h2 className="text-lg font-bold text-slate-950">
+                Status Lamaran Terbaru
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Ringkasan pipeline peluang dari project yang kamu apply.
+              </p>
+            </div>
+            {applications.length === 0 ? (
+              <div className="p-6 text-sm text-slate-500">
+                Belum ada lamaran. Browse feed untuk mulai mencari project.
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-200">
+                {applications.map((application) => (
+                  <div
+                    key={application.id}
+                    className="flex flex-wrap items-center justify-between gap-4 p-5"
+                  >
+                    <div>
+                      <div className="font-semibold text-slate-950">
+                        {application.project.title}
+                      </div>
+                      <div className="mt-1 text-sm text-slate-500">
+                        {application.project.client.company ??
+                          application.project.client.name ??
+                          application.project.client.email}{" "}
+                        - {application.project.category}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                        {application.status}
+                      </span>
+                      <span className="text-sm font-bold text-primary">
+                        {application.project.currency}{" "}
+                        {application.project.budget.toLocaleString("en-US")}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        ) : null}
+
+        {!isClient ? <GigBuilder initialGigs={gigs} /> : null}
+
+        <ProfileEditor profile={profile} />
+
+        <KycPanel
+          initialStatus={profile.kycStatus}
+          initialSubmissions={profile.kycSubmissions}
+        />
       </section>
   );
 }
