@@ -3,7 +3,11 @@ import { requireDashboardSession } from "@/lib/route-guards";
 
 export default async function SettingsPage() {
   const session = await requireDashboardSession();
-  const role = session.user.role as "freelancer" | "client";
+  const role = session.user.role;
+
+  if (!role) {
+    return null;
+  }
 
   return (
     <section className="mx-auto grid max-w-6xl gap-6">

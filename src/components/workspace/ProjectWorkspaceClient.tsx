@@ -61,7 +61,7 @@ interface WorkspacePaymentTransaction {
 
 interface WorkspaceEscrowEvent {
   id: string;
-  actorRole: "client" | "freelancer";
+  actorRole: "client" | "freelancer" | "admin";
   fromStatus: "pending" | "held" | "released" | null;
   toStatus: "pending" | "held" | "released";
   note: string;
@@ -76,7 +76,7 @@ interface WorkspaceMessage {
   id: string;
   body: string;
   translatedBody: string | null;
-  senderRole: "client" | "freelancer";
+  senderRole: "client" | "freelancer" | "admin";
   createdAt: string;
   sender: {
     name: string | null;
@@ -91,7 +91,7 @@ interface WorkspaceProjectFile {
   mimeType: string;
   size: number;
   createdAt: string;
-  uploaderRole: "client" | "freelancer";
+  uploaderRole: "client" | "freelancer" | "admin";
   uploader: {
     name: string | null;
     email: string;
@@ -112,7 +112,15 @@ interface ProjectWorkspaceClientProps {
 }
 
 function roleLabel(role: WorkspaceMessage["senderRole"]) {
-  return role === "client" ? "Client" : "Freelancer";
+  if (role === "client") {
+    return "Client";
+  }
+
+  if (role === "admin") {
+    return "Admin";
+  }
+
+  return "Freelancer";
 }
 
 function formatTimestamp(value: string) {

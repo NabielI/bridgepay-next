@@ -9,7 +9,7 @@ export interface ProfileData {
   name: string | null;
   email: string;
   phone: string | null;
-  role: "freelancer" | "client";
+  role: "freelancer" | "client" | "admin";
   kycStatus: "pending" | "verified" | "rejected";
   kycSubmissions: KycSubmissionData[];
   skills: string[];

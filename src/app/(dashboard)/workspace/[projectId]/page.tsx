@@ -7,6 +7,7 @@ import {
   ExchangeRateUnavailableError,
   fetchUsdIdrExchangeRate,
 } from "@/lib/currency";
+import { dashboardPathForRole } from "@/lib/dashboard";
 import { canAccessProjectWorkspace } from "@/lib/project-access";
 import { prisma } from "@/lib/prisma";
 
@@ -33,6 +34,12 @@ export default async function WorkspaceProjectPage({
 
   if (!session?.user?.id || !session.user.role) {
     redirect("/login");
+  }
+
+  const viewerRole = session.user.role;
+
+  if (viewerRole !== "client" && viewerRole !== "freelancer") {
+    redirect(dashboardPathForRole(viewerRole));
   }
 
   const { projectId } = await params;
@@ -135,7 +142,7 @@ export default async function WorkspaceProjectPage({
     notFound();
   }
 
-  if (!canAccessProjectWorkspace(project, session.user.id, session.user.role)) {
+  if (!canAccessProjectWorkspace(project, session.user.id, viewerRole)) {
     redirect("/discovery");
   }
 
@@ -164,7 +171,7 @@ export default async function WorkspaceProjectPage({
           </p>
         </div>
         <ProjectWorkspaceClient
-          role={session.user.role}
+          role={viewerRole}
           project={{
             id: project.id,
             title: project.title,

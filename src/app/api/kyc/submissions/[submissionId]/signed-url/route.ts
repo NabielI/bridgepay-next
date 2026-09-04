@@ -16,7 +16,7 @@ export async function POST(
 ) {
   const session = await getServerSession(authOptions);
 
-  if (!session?.user?.id) {
+  if (!session?.user?.id || !session.user.role) {
     return NextResponse.json({ message: "Unauthorized." }, { status: 401 });
   }
 
@@ -24,7 +24,7 @@ export async function POST(
   const submission = await prisma.kycSubmission.findFirst({
     where: {
       id: submissionId,
-      userId: session.user.id,
+      ...(session.user.role === "admin" ? {} : { userId: session.user.id }),
     },
     select: {
       id: true,

@@ -25,7 +25,7 @@ import { SignOutButton } from "@/components/auth/SignOutButton";
 interface DashboardIdentity {
   name?: string | null;
   email?: string | null;
-  role: "freelancer" | "client";
+  role: "freelancer" | "client" | "admin";
   kycStatus?: "pending" | "verified" | "rejected";
 }
 
@@ -58,6 +58,11 @@ const clientMenu = [
   { key: "projects", label: "Proyek Saya", href: "/client/projects", icon: FolderKanban },
   { key: "wallet", label: "Wallet", href: "/client/wallet", icon: CreditCard },
   { key: "profile", label: "Profil", href: "/client/profile", icon: UserRoundCheck },
+  { key: "settings", label: "Settings", href: "/settings", icon: Settings },
+] satisfies SidebarItem[];
+
+const adminMenu = [
+  { key: "kyc", label: "KYC Review", href: "/admin/kyc", icon: UserRoundCheck },
   { key: "settings", label: "Settings", href: "/settings", icon: Settings },
 ] satisfies SidebarItem[];
 
@@ -107,7 +112,18 @@ export function DashboardChrome({ children, user }: DashboardChromeProps) {
   const [hovered, setHovered] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const expanded = !collapsed || hovered;
-  const menu = user.role === "client" ? clientMenu : freelancerMenu;
+  const menu =
+    user.role === "admin"
+      ? adminMenu
+      : user.role === "client"
+        ? clientMenu
+        : freelancerMenu;
+  const homeHref =
+    user.role === "admin"
+      ? "/admin/kyc"
+      : user.role === "client"
+        ? "/client/dashboard"
+        : "/freelancer/dashboard";
   const initials = (user.name ?? user.email ?? "BP")
     .split(/\s|@/)
     .filter(Boolean)
@@ -204,7 +220,7 @@ export function DashboardChrome({ children, user }: DashboardChromeProps) {
         >
           <div className="flex h-16 items-center gap-4 px-4 sm:px-6">
             <Link
-              href={user.role === "client" ? "/client/dashboard" : "/freelancer/dashboard"}
+              href={homeHref}
               className="flex items-center gap-2 font-display text-lg font-bold text-slate-950 lg:hidden"
             >
               <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-navy-950 text-white">

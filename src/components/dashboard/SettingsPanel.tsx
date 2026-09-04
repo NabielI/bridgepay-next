@@ -5,7 +5,7 @@ import { Bell, LockKeyhole, Save } from "lucide-react";
 import { useState } from "react";
 
 interface SettingsPanelProps {
-  role: "freelancer" | "client";
+  role: "freelancer" | "client" | "admin";
 }
 
 export function SettingsPanel({ role }: SettingsPanelProps) {
@@ -94,7 +94,13 @@ export function SettingsPanel({ role }: SettingsPanelProps) {
             Login memakai NextAuth credentials dengan password bcrypt.
           </p>
           <Link
-            href={role === "client" ? "/client/profile" : "/freelancer/profile"}
+            href={
+              role === "admin"
+                ? "/admin/kyc"
+                : role === "client"
+                  ? "/client/profile"
+                  : "/freelancer/profile"
+            }
             className="mt-4 inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
           >
             Kelola Profil

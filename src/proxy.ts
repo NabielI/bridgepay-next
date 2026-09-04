@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { dashboardPathForRole } from "@/lib/dashboard";
 
 const protectedPrefixes = [
+  "/admin",
   "/client",
   "/freelancer",
   "/settings",
@@ -35,6 +36,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (pathname.startsWith("/admin") && token.role !== "admin") {
+    return NextResponse.redirect(
+      new URL(dashboardPathForRole(token.role), request.url),
+    );
+  }
+
   if (pathname.startsWith("/client") && token.role !== "client") {
     return NextResponse.redirect(
       new URL(dashboardPathForRole(token.role), request.url),
@@ -54,6 +61,7 @@ export const config = {
   matcher: [
     "/client/:path*",
     "/freelancer/:path*",
+    "/admin/:path*",
     "/settings",
     "/workspace/:path*",
   ],

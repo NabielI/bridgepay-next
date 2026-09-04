@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, Download, FileText, Loader2, Upload, XCircle } from "lucide-react";
+import { BadgeCheck, Download, FileText, Loader2, Upload } from "lucide-react";
 import { FormEvent, useState } from "react";
 
 export interface KycSubmissionData {
@@ -10,7 +10,7 @@ export interface KycSubmissionData {
   size: number;
   status: "pending" | "verified" | "rejected";
   reviewNote: string | null;
-  reviewerRole: "freelancer" | "client" | null;
+  reviewerRole: "freelancer" | "client" | "admin" | null;
   reviewedAt: string | null;
   createdAt: string;
 }
@@ -70,7 +70,6 @@ export function KycPanel({
   const [status, setStatus] = useState(initialStatus);
   const [submissions, setSubmissions] = useState(initialSubmissions);
   const [uploadPending, setUploadPending] = useState(false);
-  const [reviewPending, setReviewPending] = useState<string | null>(null);
   const [downloadPending, setDownloadPending] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -112,40 +111,6 @@ export function KycPanel({
     setSubmissions((current) => [payload.submission!, ...current]);
     setMessage("Dokumen KYC berhasil diupload dan menunggu review.");
     form.reset();
-  }
-
-  async function reviewSubmission(
-    submission: KycSubmissionData,
-    action: "verify" | "reject",
-  ) {
-    setReviewPending(`${submission.id}-${action}`);
-    setMessage(null);
-
-    const response = await fetch(`/api/kyc/submissions/${submission.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action }),
-    });
-    const payload = (await response.json().catch(() => null)) as {
-      kycStatus?: KycSubmissionData["status"];
-      submission?: KycSubmissionData;
-      message?: string;
-    } | null;
-
-    setReviewPending(null);
-
-    if (!response.ok || !payload?.submission || !payload.kycStatus) {
-      setMessage(payload?.message ?? "Review KYC gagal.");
-      return;
-    }
-
-    setStatus(payload.kycStatus);
-    setSubmissions((current) =>
-      current.map((item) =>
-        item.id === payload.submission!.id ? payload.submission! : item,
-      ),
-    );
-    setMessage(`Status KYC berubah menjadi ${statusLabel(payload.kycStatus)}.`);
   }
 
   async function downloadSubmission(submission: KycSubmissionData) {
@@ -278,30 +243,6 @@ export function KycPanel({
                       <Download className="h-3.5 w-3.5" />
                     )}
                     Download
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => reviewSubmission(submission, "verify")}
-                    disabled={Boolean(reviewPending)}
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
-                    data-testid="kyc-verify"
-                  >
-                    {reviewPending === `${submission.id}-verify` ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <BadgeCheck className="h-3.5 w-3.5" />
-                    )}
-                    Mock Verify
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => reviewSubmission(submission, "reject")}
-                    disabled={Boolean(reviewPending)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    data-testid="kyc-reject"
-                  >
-                    <XCircle className="h-3.5 w-3.5" />
-                    Mock Reject
                   </button>
                 </div>
               </article>

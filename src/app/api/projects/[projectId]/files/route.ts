@@ -45,6 +45,16 @@ async function getProjectAccess(projectId: string) {
 
   const userId = session.user.id;
   const role = session.user.role;
+
+  if (role !== "client" && role !== "freelancer") {
+    return {
+      error: NextResponse.json(
+        { message: "Admin tidak bisa mengakses file workspace project." },
+        { status: 403 },
+      ),
+    };
+  }
+
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: {

@@ -9,6 +9,7 @@
     "start": "next start",
     "postinstall": "prisma generate",
     "lint": "eslint",
+    "admin:create": "node scripts/create-admin.mjs",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
