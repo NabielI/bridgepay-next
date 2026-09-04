@@ -15,7 +15,23 @@ import { AppNav } from "@/components/AppNav";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
-const fallbackShowcase = [
+interface ShowcaseGig {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  skills: string[];
+  startingPrice: number;
+  currency: string;
+  freelancer: {
+    name: string | null;
+    email: string;
+    kycStatus: string;
+    rate: string | null;
+  };
+}
+
+const fallbackShowcase: ShowcaseGig[] = [
   {
     id: "demo-landing-page",
     title: "Bilingual landing page untuk UMKM ekspor",
@@ -93,6 +109,46 @@ function initials(name: string) {
     .toUpperCase();
 }
 
+function freelancerKey(gig: ShowcaseGig) {
+  return (gig.freelancer.email || gig.freelancer.name || gig.id).toLowerCase();
+}
+
+function selectShowcase(gigs: ShowcaseGig[]) {
+  if (gigs.length <= 2) {
+    return gigs;
+  }
+
+  const uniqueFreelancers = new Map<string, ShowcaseGig>();
+
+  for (const gig of gigs) {
+    const key = freelancerKey(gig);
+
+    if (!uniqueFreelancers.has(key)) {
+      uniqueFreelancers.set(key, gig);
+    }
+  }
+
+  if (uniqueFreelancers.size <= 1) {
+    return gigs.slice(0, 2);
+  }
+
+  const selected = Array.from(uniqueFreelancers.values());
+  const selectedIds = new Set(selected.map((gig) => gig.id));
+
+  for (const gig of gigs) {
+    if (selected.length >= 6) {
+      break;
+    }
+
+    if (!selectedIds.has(gig.id)) {
+      selected.push(gig);
+      selectedIds.add(gig.id);
+    }
+  }
+
+  return selected;
+}
+
 export default async function Home() {
   const session = await getServerSession(authOptions);
   const [gigs, verifiedFreelancers, completedProjects, protectedEscrows] =
@@ -129,7 +185,9 @@ export default async function Home() {
         where: { status: { in: ["held", "released"] } },
       }),
     ]);
-  const showcase = gigs.length > 0 ? gigs : fallbackShowcase;
+  const showcase = selectShowcase(gigs.length > 0 ? gigs : fallbackShowcase);
+  const hasLimitedLiveShowcase = gigs.length > showcase.length;
+  const heroPreview = showcase.slice(0, showcase.length <= 2 ? 2 : 3);
   const trustSignals = [
     {
       label: "Freelancer terverifikasi",
@@ -197,29 +255,34 @@ export default async function Home() {
               <Sparkles className="h-8 w-8 text-teal-300" />
             </div>
             <div className="grid gap-3">
-              {showcase.slice(0, 3).map((gig) => (
+              {heroPreview.map((gig) => (
                 <div
                   key={gig.id}
-                  className="flex items-center justify-between rounded-lg bg-white/10 p-4"
+                  className="flex min-w-0 items-start justify-between gap-3 rounded-lg bg-white/10 p-4"
                 >
-                  <div className="flex items-center gap-3">
+                  <div className="flex min-w-0 flex-1 items-start gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-300 text-sm font-bold text-navy-950">
                       {initials(gig.freelancer.name ?? gig.freelancer.email)}
                     </span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-semibold text-white">
+                    <span className="min-w-0 flex-1">
+                      <span className="line-clamp-2 break-words text-sm font-semibold leading-5 text-white">
                         {gig.title}
                       </span>
-                      <span className="block text-xs text-slate-300">
+                      <span className="mt-1 block truncate text-xs text-slate-300">
                         {gig.freelancer.name ?? gig.freelancer.email}
                       </span>
                     </span>
                   </div>
-                  <span className="text-sm font-semibold">
+                  <span className="shrink-0 whitespace-nowrap text-sm font-semibold">
                     {gig.currency} {gig.startingPrice.toLocaleString("en-US")}
                   </span>
                 </div>
               ))}
+              {hasLimitedLiveShowcase ? (
+                <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm leading-6 text-slate-300">
+                  Menampilkan gig pilihan supaya preview tetap ringkas.
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -263,19 +326,25 @@ export default async function Home() {
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div
+            className={
+              showcase.length <= 2
+                ? "grid gap-4 md:grid-cols-2"
+                : "grid gap-4 md:grid-cols-2 lg:grid-cols-3"
+            }
+          >
             {showcase.map((gig) => (
               <article
                 key={gig.id}
                 className="rounded-2xl border border-slate-200 bg-white p-5 shadow-soft"
               >
                 <div className="mb-4 flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
                     <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-navy-950 text-sm font-bold text-white">
                       {initials(gig.freelancer.name ?? gig.freelancer.email)}
                     </span>
-                    <div>
-                      <div className="font-semibold text-slate-950">
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold text-slate-950">
                         {gig.freelancer.name ?? gig.freelancer.email}
                       </div>
                       <div className="text-xs text-slate-500">
@@ -283,11 +352,13 @@ export default async function Home() {
                       </div>
                     </div>
                   </div>
-                  <span className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-primary">
+                  <span className="max-w-32 shrink-0 truncate rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-primary">
                     {gig.category}
                   </span>
                 </div>
-                <h3 className="font-bold text-slate-950">{gig.title}</h3>
+                <h3 className="line-clamp-2 break-words font-bold leading-6 text-slate-950">
+                  {gig.title}
+                </h3>
                 <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">
                   {gig.description}
                 </p>
@@ -314,6 +385,12 @@ export default async function Home() {
             <p className="mt-4 text-sm text-slate-500">
               Showcase di atas adalah contoh dummy untuk prototype sampai ada gig
               published di database.
+            </p>
+          ) : null}
+          {hasLimitedLiveShowcase ? (
+            <p className="mt-4 text-sm text-slate-500">
+              Beberapa gig dari freelancer yang sama disembunyikan agar preview
+              sebelum login tetap rapi dan tidak repetitif.
             </p>
           ) : null}
         </div>
