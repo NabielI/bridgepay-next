@@ -13,6 +13,10 @@ interface FrankfurterPairResponse {
   rate?: unknown;
 }
 
+interface FetchUsdIdrExchangeRateOptions {
+  revalidateSeconds?: number;
+}
+
 export class ExchangeRateUnavailableError extends Error {
   constructor(message = "Kurs USD-IDR belum bisa diambil.") {
     super(message);
@@ -20,12 +24,17 @@ export class ExchangeRateUnavailableError extends Error {
   }
 }
 
-export async function fetchUsdIdrExchangeRate(): Promise<UsdIdrExchangeRate> {
+export async function fetchUsdIdrExchangeRate(
+  options: FetchUsdIdrExchangeRateOptions = {},
+): Promise<UsdIdrExchangeRate> {
   let response: Response;
+  const cacheOptions = options.revalidateSeconds
+    ? { next: { revalidate: options.revalidateSeconds } }
+    : { cache: "no-store" as const };
 
   try {
     response = await fetch(FRANKFURTER_USD_IDR_URL, {
-      cache: "no-store",
+      ...cacheOptions,
       headers: {
         Accept: "application/json",
       },

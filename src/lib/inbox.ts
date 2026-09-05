@@ -61,12 +61,6 @@ const inboxProjectSelect = Prisma.validator<Prisma.ProjectSelect>()({
       },
     },
   },
-  conversationReadStates: {
-    take: 1,
-    select: {
-      lastReadAt: true,
-    },
-  },
 });
 
 function inboxProjectWhere(
@@ -87,6 +81,47 @@ function inboxProjectWhere(
   return null;
 }
 
+interface CountRow {
+  count: bigint | number;
+}
+
+interface ProjectUnreadCountRow {
+  projectId: string;
+  unreadCount: bigint | number;
+}
+
+function countValue(value: bigint | number | null | undefined) {
+  return Number(value ?? 0);
+}
+
+async function getUnreadCountByProject(userId: string, projectIds: string[]) {
+  if (projectIds.length === 0) {
+    return new Map<string, number>();
+  }
+
+  const rows = await prisma.$queryRaw<ProjectUnreadCountRow[]>(Prisma.sql`
+    SELECT
+      m."projectId" AS "projectId",
+      COUNT(*) AS "unreadCount"
+    FROM "Message" m
+    LEFT JOIN "ConversationReadState" crs
+      ON crs."projectId" = m."projectId"
+      AND crs."userId" = ${userId}
+    WHERE
+      m."projectId" IN (${Prisma.join(projectIds)})
+      AND m."senderId" <> ${userId}
+      AND (
+        crs."lastReadAt" IS NULL
+        OR m."createdAt" > crs."lastReadAt"
+      )
+    GROUP BY m."projectId"
+  `);
+
+  return new Map(
+    rows.map((row) => [row.projectId, countValue(row.unreadCount)]),
+  );
+}
+
 export async function getInboxConversations(
   userId: string,
   role: Role,
@@ -101,66 +136,51 @@ export async function getInboxConversations(
     where,
     orderBy: { updatedAt: "desc" },
     take: 50,
-    select: {
-      ...inboxProjectSelect,
-      conversationReadStates: {
-        where: { userId },
-        take: 1,
-        select: {
-          lastReadAt: true,
-        },
-      },
-    },
+    select: inboxProjectSelect,
   });
-
-  const conversations = await Promise.all(
-    projects.map(async (project) => {
-      const lastReadAt = project.conversationReadStates[0]?.lastReadAt;
-      const unreadCount = await prisma.message.count({
-        where: {
-          projectId: project.id,
-          senderId: { not: userId },
-          ...(lastReadAt ? { createdAt: { gt: lastReadAt } } : {}),
-        },
-      });
-      const lastMessage = project.messages[0] ?? null;
-      const counterpart =
-        role === "client"
-          ? {
-              name: project.assignedFreelancer?.name ?? null,
-              email: project.assignedFreelancer?.email ?? null,
-              role: "freelancer" as const,
-            }
-          : {
-              name: project.client.name,
-              email: project.client.email,
-              role: "client" as const,
-            };
-
-      return {
-        project: {
-          id: project.id,
-          title: project.title,
-          category: project.category,
-          status: project.status,
-          updatedAt: project.updatedAt.toISOString(),
-        },
-        counterpart,
-        lastMessage: lastMessage
-          ? {
-              id: lastMessage.id,
-              body: lastMessage.body,
-              createdAt: lastMessage.createdAt.toISOString(),
-              senderRole: lastMessage.senderRole,
-              senderName: lastMessage.sender.name,
-              senderEmail: lastMessage.sender.email,
-            }
-          : null,
-        unreadCount,
-        sortDate: lastMessage?.createdAt ?? project.updatedAt ?? project.createdAt,
-      };
-    }),
+  const unreadCounts = await getUnreadCountByProject(
+    userId,
+    projects.map((project) => project.id),
   );
+
+  const conversations = projects.map((project) => {
+    const lastMessage = project.messages[0] ?? null;
+    const counterpart =
+      role === "client"
+        ? {
+            name: project.assignedFreelancer?.name ?? null,
+            email: project.assignedFreelancer?.email ?? null,
+            role: "freelancer" as const,
+          }
+        : {
+            name: project.client.name,
+            email: project.client.email,
+            role: "client" as const,
+          };
+
+    return {
+      project: {
+        id: project.id,
+        title: project.title,
+        category: project.category,
+        status: project.status,
+        updatedAt: project.updatedAt.toISOString(),
+      },
+      counterpart,
+      lastMessage: lastMessage
+        ? {
+            id: lastMessage.id,
+            body: lastMessage.body,
+            createdAt: lastMessage.createdAt.toISOString(),
+            senderRole: lastMessage.senderRole,
+            senderName: lastMessage.sender.name,
+            senderEmail: lastMessage.sender.email,
+          }
+        : null,
+      unreadCount: unreadCounts.get(project.id) ?? 0,
+      sortDate: lastMessage?.createdAt ?? project.updatedAt ?? project.createdAt,
+    };
+  });
 
   return conversations
     .sort((a, b) => b.sortDate.getTime() - a.sortDate.getTime())
@@ -173,10 +193,46 @@ export async function getInboxConversations(
 }
 
 export async function getUnreadMessageCount(userId: string, role: Role) {
-  const conversations = await getInboxConversations(userId, role);
+  if (role === "client") {
+    const rows = await prisma.$queryRaw<CountRow[]>(Prisma.sql`
+      SELECT COUNT(*) AS count
+      FROM "Message" m
+      INNER JOIN "Project" p ON p."id" = m."projectId"
+      LEFT JOIN "ConversationReadState" crs
+        ON crs."projectId" = p."id"
+        AND crs."userId" = ${userId}
+      WHERE
+        p."clientId" = ${userId}
+        AND m."senderId" <> ${userId}
+        AND (
+          crs."lastReadAt" IS NULL
+          OR m."createdAt" > crs."lastReadAt"
+        )
+    `);
 
-  return conversations.reduce(
-    (sum, conversation) => sum + conversation.unreadCount,
-    0,
-  );
+    return countValue(rows[0]?.count);
+  }
+
+  if (role === "freelancer") {
+    const rows = await prisma.$queryRaw<CountRow[]>(Prisma.sql`
+      SELECT COUNT(*) AS count
+      FROM "Message" m
+      INNER JOIN "Project" p ON p."id" = m."projectId"
+      LEFT JOIN "ConversationReadState" crs
+        ON crs."projectId" = p."id"
+        AND crs."userId" = ${userId}
+      WHERE
+        p."assignedFreelancerId" = ${userId}
+        AND p."status"::text IN ('active', 'completed')
+        AND m."senderId" <> ${userId}
+        AND (
+          crs."lastReadAt" IS NULL
+          OR m."createdAt" > crs."lastReadAt"
+        )
+    `);
+
+    return countValue(rows[0]?.count);
+  }
+
+  return 0;
 }

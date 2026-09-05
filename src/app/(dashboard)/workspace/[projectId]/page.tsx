@@ -146,15 +146,15 @@ export default async function WorkspaceProjectPage({
     redirect("/discovery");
   }
 
-  const todayExchangeRate = await fetchUsdIdrExchangeRate().catch(
-    (error: unknown) => {
-      if (error instanceof ExchangeRateUnavailableError) {
-        return null;
-      }
+  const todayExchangeRate = await fetchUsdIdrExchangeRate({
+    revalidateSeconds: 3600,
+  }).catch((error: unknown) => {
+    if (error instanceof ExchangeRateUnavailableError) {
+      return null;
+    }
 
-      throw error;
-    },
-  );
+    throw error;
+  });
 
   return (
     <section className="mx-auto grid max-w-6xl gap-6">
