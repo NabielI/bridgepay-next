@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { activityLogData } from "@/lib/activity-log";
 import { authOptions } from "@/lib/auth";
+import { createNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -125,6 +126,7 @@ export async function POST(
     where: { id: projectId },
     select: {
       id: true,
+      title: true,
       status: true,
       clientId: true,
     },
@@ -194,6 +196,17 @@ export async function POST(
           status: createdApplication.status,
         },
       }),
+    });
+
+    await createNotification(tx, {
+      recipientId: project.clientId,
+      actorId,
+      type: "application.submitted",
+      title: "Lamaran baru",
+      message: `${session.user.name ?? session.user.email ?? "Freelancer"} melamar ke project "${project.title}".`,
+      entityType: "projectApplication",
+      entityId: createdApplication.id,
+      href: `/client/projects`,
     });
 
     return createdApplication;

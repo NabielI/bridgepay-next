@@ -8,6 +8,7 @@ import {
   MidtransConfigurationError,
   verifyMidtransNotificationSignature,
 } from "@/lib/midtrans";
+import { createNotifications } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -73,7 +74,9 @@ export async function POST(request: Request) {
           project: {
             select: {
               id: true,
+              title: true,
               clientId: true,
+              assignedFreelancerId: true,
             },
           },
         },
@@ -203,6 +206,34 @@ export async function POST(request: Request) {
         },
       }),
     });
+
+    await createNotifications(tx, [
+      {
+        recipientId: payment.escrow.project.clientId,
+        actorId: payment.escrow.project.clientId,
+        type: "escrow.funded",
+        title: "Escrow funded",
+        message: `Dana escrow untuk project "${payment.escrow.project.title}" sudah berhasil ditahan BridgePay.`,
+        entityType: "escrow",
+        entityId: payment.escrow.id,
+        href: `/workspace/${payment.escrow.project.id}`,
+        allowSelf: true,
+      },
+      ...(payment.escrow.project.assignedFreelancerId
+        ? [
+            {
+              recipientId: payment.escrow.project.assignedFreelancerId,
+              actorId: payment.escrow.project.clientId,
+              type: "escrow.funded",
+              title: "Escrow funded",
+              message: `Dana escrow untuk project "${payment.escrow.project.title}" sudah didanai client dan ditahan BridgePay.`,
+              entityType: "escrow",
+              entityId: payment.escrow.id,
+              href: `/workspace/${payment.escrow.project.id}`,
+            },
+          ]
+        : []),
+    ]);
 
     return {
       payment: updatedPayment,

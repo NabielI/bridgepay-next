@@ -4,6 +4,10 @@ import { z } from "zod";
 
 import { activityLogData } from "@/lib/activity-log";
 import { authOptions } from "@/lib/auth";
+import {
+  createNotification,
+  createNotifications,
+} from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -67,6 +71,8 @@ export async function PATCH(
     );
   }
 
+  const actorId = session.user.id;
+  const actorRole = session.user.role;
   const body = await request.json().catch(() => null);
   const parsed = reviewSchema.safeParse(body);
 
@@ -95,6 +101,7 @@ export async function PATCH(
         project: {
           select: {
             id: true,
+            title: true,
             clientId: true,
             status: true,
             assignedFreelancerId: true,
@@ -112,7 +119,7 @@ export async function PATCH(
       };
     }
 
-    if (application.project.clientId !== session.user.id) {
+    if (application.project.clientId !== actorId) {
       return {
         error: NextResponse.json(
           { message: "Tidak punya akses review lamaran project ini." },
@@ -139,8 +146,8 @@ export async function PATCH(
 
       await tx.activityLog.create({
         data: activityLogData({
-          actorId: session.user.id,
-          actorRole: "client",
+          actorId,
+          actorRole,
           action: "application.rejected",
           entityType: "projectApplication",
           entityId: rejectedApplication.id,
@@ -150,6 +157,17 @@ export async function PATCH(
             status: rejectedApplication.status,
           },
         }),
+      });
+
+      await createNotification(tx, {
+        recipientId: application.freelancerId,
+        actorId,
+        type: "application.rejected",
+        title: "Lamaran ditolak",
+        message: `Lamaran kamu untuk project "${application.project.title}" belum diterima.`,
+        entityType: "projectApplication",
+        entityId: rejectedApplication.id,
+        href: "/freelancer/projects",
       });
 
       return { application: rejectedApplication };
@@ -185,6 +203,18 @@ export async function PATCH(
       select: { id: true },
     });
 
+    const autoRejectedApplications = await tx.projectApplication.findMany({
+      where: {
+        projectId: application.projectId,
+        id: { not: application.id },
+        status: "pending",
+      },
+      select: {
+        id: true,
+        freelancerId: true,
+      },
+    });
+
     await tx.projectApplication.updateMany({
       where: {
         projectId: application.projectId,
@@ -202,8 +232,8 @@ export async function PATCH(
 
     await tx.activityLog.create({
       data: activityLogData({
-        actorId: session.user.id,
-        actorRole: "client",
+        actorId,
+        actorRole,
         action: "application.accepted",
         entityType: "projectApplication",
         entityId: acceptedApplication.id,
@@ -215,6 +245,31 @@ export async function PATCH(
         },
       }),
     });
+
+    await createNotification(tx, {
+      recipientId: application.freelancerId,
+      actorId,
+      type: "application.accepted",
+      title: "Lamaran diterima",
+      message: `Lamaran kamu untuk project "${application.project.title}" diterima client.`,
+      entityType: "projectApplication",
+      entityId: acceptedApplication.id,
+      href: "/freelancer/projects",
+    });
+
+    await createNotifications(
+      tx,
+      autoRejectedApplications.map((rejected) => ({
+        recipientId: rejected.freelancerId,
+        actorId,
+        type: "application.rejected",
+        title: "Lamaran ditolak",
+        message: `Lamaran kamu untuk project "${application.project.title}" belum diterima.`,
+        entityType: "projectApplication",
+        entityId: rejected.id,
+        href: "/freelancer/projects",
+      })),
+    );
 
     return { application: acceptedApplication };
   });

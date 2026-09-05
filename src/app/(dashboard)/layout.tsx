@@ -5,6 +5,10 @@ import { AppNav } from "@/components/AppNav";
 import { DashboardChrome } from "@/components/dashboard/DashboardChrome";
 import { authOptions } from "@/lib/auth";
 import { getUnreadMessageCount } from "@/lib/inbox";
+import {
+  getDashboardNotifications,
+  getUnreadNotificationCount,
+} from "@/lib/notifications";
 
 export default async function DashboardLayout({
   children,
@@ -22,10 +26,14 @@ export default async function DashboardLayout({
     );
   }
 
-  const unreadMessages =
-    session.user.role === "client" || session.user.role === "freelancer"
-      ? await getUnreadMessageCount(session.user.id, session.user.role)
-      : 0;
+  const [unreadMessages, notifications, unreadNotificationCount] =
+    await Promise.all([
+      session.user.role === "client" || session.user.role === "freelancer"
+        ? getUnreadMessageCount(session.user.id, session.user.role)
+        : Promise.resolve(0),
+      getDashboardNotifications(session.user.id),
+      getUnreadNotificationCount(session.user.id),
+    ]);
 
   return (
     <DashboardChrome
@@ -36,6 +44,8 @@ export default async function DashboardLayout({
         kycStatus: session.user.kycStatus,
       }}
       unreadMessages={unreadMessages}
+      notifications={notifications}
+      unreadNotificationCount={unreadNotificationCount}
     >
       {children}
     </DashboardChrome>

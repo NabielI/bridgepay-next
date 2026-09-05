@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { activityLogData } from "@/lib/activity-log";
 import { authOptions } from "@/lib/auth";
+import { createNotification } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -146,6 +147,24 @@ export async function PATCH(
           reviewNote,
         },
       }),
+    });
+
+    await createNotification(tx, {
+      recipientId: submission.userId,
+      actorId,
+      type: nextStatus === "verified" ? "kyc.verified" : "kyc.rejected",
+      title:
+        nextStatus === "verified" ? "KYC terverifikasi" : "KYC ditolak",
+      message:
+        nextStatus === "verified"
+          ? "Verifikasi KYC kamu sudah disetujui."
+          : `Verifikasi KYC kamu ditolak. Catatan: ${reviewNote}`,
+      entityType: "kycSubmission",
+      entityId: reviewedSubmission.id,
+      href:
+        reviewedSubmission.user.role === "client"
+          ? "/client/profile"
+          : "/freelancer/profile",
     });
 
     return reviewedSubmission;

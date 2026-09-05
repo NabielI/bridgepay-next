@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { activityLogData } from "@/lib/activity-log";
 import { authOptions } from "@/lib/auth";
+import { createNotifications } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -133,9 +134,11 @@ export async function PATCH(
       where: { id: projectId },
       select: {
         id: true,
+        title: true,
         budget: true,
         currency: true,
         clientId: true,
+        assignedFreelancerId: true,
         assignedFreelancer: {
           select: {
             kycStatus: true,
@@ -244,6 +247,34 @@ export async function PATCH(
         },
       }),
     });
+
+    await createNotifications(tx, [
+      {
+        recipientId: project.clientId,
+        actorId,
+        type: "escrow.released",
+        title: "Escrow released",
+        message: `Dana escrow untuk project "${project.title}" sudah dilepas ke freelancer.`,
+        entityType: "escrow",
+        entityId: updatedEscrow.id,
+        href: `/workspace/${project.id}`,
+        allowSelf: true,
+      },
+      ...(project.assignedFreelancerId
+        ? [
+            {
+              recipientId: project.assignedFreelancerId,
+              actorId,
+              type: "escrow.released",
+              title: "Payout escrow dilepas",
+              message: `Dana escrow untuk project "${project.title}" sudah dilepas ke kamu.`,
+              entityType: "escrow",
+              entityId: updatedEscrow.id,
+              href: `/workspace/${project.id}`,
+            },
+          ]
+        : []),
+    ]);
 
     return { escrow: updatedEscrow };
   });
