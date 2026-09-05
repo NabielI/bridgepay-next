@@ -37,6 +37,8 @@ next-*.log
 # vercel
 .vercel
 
+artifacts/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
