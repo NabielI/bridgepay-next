@@ -7,6 +7,7 @@ const protectedPrefixes = [
   "/admin",
   "/client",
   "/freelancer",
+  "/freelancers",
   "/inbox",
   "/settings",
   "/workspace",
@@ -36,7 +37,8 @@ export async function proxy(request: NextRequest) {
   if (
     pathname.startsWith("/workspace") ||
     pathname.startsWith("/settings") ||
-    pathname.startsWith("/inbox")
+    pathname.startsWith("/inbox") ||
+    pathname.startsWith("/freelancers")
   ) {
     return NextResponse.next();
   }
@@ -66,6 +68,7 @@ export const config = {
   matcher: [
     "/client/:path*",
     "/freelancer/:path*",
+    "/freelancers/:path*",
     "/admin/:path*",
     "/inbox",
     "/settings",

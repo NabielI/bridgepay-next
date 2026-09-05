@@ -52,6 +52,7 @@ export default async function DiscoveryPage() {
         id: true,
         name: true,
         email: true,
+        bio: true,
         skills: true,
         rate: true,
         kycStatus: true,
@@ -123,6 +124,7 @@ export default async function DiscoveryPage() {
         deliverables: true,
         freelancer: {
           select: {
+            id: true,
             name: true,
             email: true,
             kycStatus: true,
@@ -278,14 +280,17 @@ export default async function DiscoveryPage() {
                     ? talent.skills.join(", ")
                     : "Skill belum dilengkapi"}
                 </p>
+                <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">
+                  {talent.bio ?? "Bio freelancer belum dilengkapi."}
+                </p>
                 <p className="mt-4 text-sm font-semibold text-primary">
                   {talent.rate ?? "Rate belum diisi"}
                 </p>
                 <Link
-                  href="/workspace"
+                  href={`/freelancers/${talent.id}`}
                   className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
-                  Hubungi di Workspace
+                  Lihat Profil CV
                 </Link>
               </article>
             ))}
@@ -357,10 +362,14 @@ export default async function DiscoveryPage() {
                     ))}
                   </div>
                   <Link
-                    href={isClient ? "/client/dashboard" : "/register"}
+                    href={
+                      isClient || isFreelancer
+                        ? `/freelancers/${gig.freelancer.id}`
+                        : "/register"
+                    }
                     className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                   >
-                    {isClient ? "Buat Project Serupa" : "Hire via BridgePay"}
+                    {isClient || isFreelancer ? "Lihat Profil CV" : "Hire via BridgePay"}
                   </Link>
                 </article>
               ))}

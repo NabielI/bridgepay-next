@@ -20,6 +20,45 @@ export default async function FreelancerProfilePage() {
         rate: true,
         company: true,
         budget: true,
+        bio: true,
+        freelancerExperiences: {
+          orderBy: { sortOrder: "asc" },
+          select: {
+            id: true,
+            company: true,
+            position: true,
+            period: true,
+            description: true,
+          },
+        },
+        portfolioProjects: {
+          orderBy: { sortOrder: "asc" },
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            link: true,
+            imageUrl: true,
+          },
+        },
+        freelancerLanguages: {
+          orderBy: { sortOrder: "asc" },
+          select: {
+            id: true,
+            language: true,
+            level: true,
+          },
+        },
+        freelancerCertifications: {
+          orderBy: { sortOrder: "asc" },
+          select: {
+            id: true,
+            name: true,
+            issuer: true,
+            issueDate: true,
+            credentialUrl: true,
+          },
+        },
         kycSubmissions: {
           orderBy: { createdAt: "desc" },
           take: 5,
@@ -71,10 +110,19 @@ export default async function FreelancerProfilePage() {
         profile={{
           ...profile,
           kycSubmissions: profile.kycSubmissions.map((submission) => ({
-            ...submission,
-            reviewedAt: submission.reviewedAt?.toISOString() ?? null,
-            createdAt: submission.createdAt.toISOString(),
-          })),
+          ...submission,
+          reviewedAt: submission.reviewedAt?.toISOString() ?? null,
+          createdAt: submission.createdAt.toISOString(),
+        })),
+          experiences: profile.freelancerExperiences,
+          portfolioProjects: profile.portfolioProjects,
+          languages: profile.freelancerLanguages,
+          certifications: profile.freelancerCertifications.map(
+            (certification) => ({
+              ...certification,
+              issueDate: certification.issueDate.toISOString(),
+            }),
+          ),
         }}
       />
       <KycPanel

@@ -1,6 +1,7 @@
 "use client";
 
 import { BadgeCheck, Loader2, UserRoundCheck, XCircle } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 type ApplicationStatus = "pending" | "accepted" | "rejected" | "withdrawn";
@@ -192,11 +193,27 @@ export function ClientProjectApplications({
               </span>
             </div>
 
-            {application.coverLetter ? (
-              <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">
-                {application.coverLetter}
-              </p>
-            ) : null}
+            <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase text-slate-500">
+                    Alasan Lamaran
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">
+                    {application.coverLetter ??
+                      "Freelancer belum menulis alasan lamaran."}
+                  </p>
+                </div>
+                <Link
+                  href={`/freelancers/${application.freelancer.id}`}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                  data-testid="application-cv-link"
+                >
+                  <UserRoundCheck className="h-3.5 w-3.5" />
+                  Lihat CV
+                </Link>
+              </div>
+            </div>
 
             <div className="mt-3 flex flex-wrap gap-2">
               {application.freelancer.skills.slice(0, 4).map((skill) => (

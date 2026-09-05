@@ -83,6 +83,7 @@ model User {
   rate          String?
   company       String?
   budget        String?
+  bio           String?   @db.Text
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -100,6 +101,10 @@ model User {
   assignedProjects       Project[]            @relation("AssignedFreelancerProjects")
   passwordResetTokens    PasswordResetToken[]
   conversationReadStates ConversationReadState[]
+  freelancerExperiences  FreelancerExperience[]
+  portfolioProjects      FreelancerPortfolioProject[]
+  freelancerLanguages    FreelancerLanguage[]
+  freelancerCertifications FreelancerCertification[]
 }
 
 model Project {
@@ -142,6 +147,69 @@ model ConversationReadState {
   @@unique([userId, projectId])
   @@index([userId, updatedAt])
   @@index([projectId])
+}
+
+model FreelancerExperience {
+  id           String   @id @default(cuid())
+  freelancerId String
+  company      String
+  position     String
+  period       String
+  description  String   @db.Text
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  freelancer User @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  @@index([freelancerId, sortOrder])
+}
+
+model FreelancerPortfolioProject {
+  id               String   @id @default(cuid())
+  freelancerId     String
+  title            String
+  description      String   @db.Text
+  link             String?
+  imageUrl         String?
+  imageStoragePath String?
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  freelancer User @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  @@index([freelancerId, sortOrder])
+}
+
+model FreelancerLanguage {
+  id           String   @id @default(cuid())
+  freelancerId String
+  language     String
+  level        String
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  freelancer User @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  @@index([freelancerId, sortOrder])
+}
+
+model FreelancerCertification {
+  id            String    @id @default(cuid())
+  freelancerId  String
+  name          String
+  issuer        String
+  issueDate     DateTime
+  credentialUrl String?
+  sortOrder     Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  freelancer User @relation(fields: [freelancerId], references: [id], onDelete: Cascade)
+
+  @@index([freelancerId, sortOrder])
 }
 
 model ProjectApplication {
