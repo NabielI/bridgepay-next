@@ -15,8 +15,12 @@ export function canAccessProjectWorkspace(
     return project.clientId === userId;
   }
 
-  return (
+  if (role === "freelancer") {
+    return (
     project.assignedFreelancerId === userId &&
     (project.status === "active" || project.status === "completed")
-  );
+    );
+  }
+
+  return false;
 }

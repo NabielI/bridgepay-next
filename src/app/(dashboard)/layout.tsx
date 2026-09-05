@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { AppNav } from "@/components/AppNav";
 import { DashboardChrome } from "@/components/dashboard/DashboardChrome";
 import { authOptions } from "@/lib/auth";
+import { getUnreadMessageCount } from "@/lib/inbox";
 
 export default async function DashboardLayout({
   children,
@@ -21,6 +22,11 @@ export default async function DashboardLayout({
     );
   }
 
+  const unreadMessages =
+    session.user.role === "client" || session.user.role === "freelancer"
+      ? await getUnreadMessageCount(session.user.id, session.user.role)
+      : 0;
+
   return (
     <DashboardChrome
       user={{
@@ -29,6 +35,7 @@ export default async function DashboardLayout({
         role: session.user.role,
         kycStatus: session.user.kycStatus,
       }}
+      unreadMessages={unreadMessages}
     >
       {children}
     </DashboardChrome>

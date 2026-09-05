@@ -15,8 +15,7 @@ import {
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 
-import { KycPanel } from "@/components/dashboard/KycPanel";
-import { ProfileData, ProfileEditor } from "@/components/dashboard/ProfileEditor";
+import type { ProfileData } from "@/components/dashboard/ProfileEditor";
 
 export interface ClientProject {
   id: string;
@@ -614,12 +613,88 @@ export function ClientDashboard({
           </div>
         ) : null}
 
-        <ProfileEditor profile={profile} />
-
-        <KycPanel
-          initialStatus={profile.kycStatus}
-          initialSubmissions={profile.kycSubmissions}
-        />
+        <section
+          className="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft"
+          data-testid="client-action-queue"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-950">
+                Review & Escrow Queue
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Tindakan paling dekat untuk menjaga project tetap bergerak.
+              </p>
+            </div>
+            <Link
+              href="/client/profile"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            >
+              KYC {profile.kycStatus}
+            </Link>
+          </div>
+          <div className="mt-5 grid gap-4 lg:grid-cols-3">
+            <Link
+              href="/client/projects"
+              className="rounded-xl border border-slate-200 p-4 transition hover:bg-slate-50"
+            >
+              <FileCheck2 className="mb-3 h-5 w-5 text-primary" />
+              <div className="text-2xl font-bold text-slate-950">
+                {pendingApplications.length}
+              </div>
+              <div className="mt-1 text-sm text-slate-500">
+                Pelamar perlu direview
+              </div>
+              <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">
+                {pendingApplications[0]
+                  ? `${pendingApplications[0].freelancer.name ?? pendingApplications[0].freelancer.email} menunggu keputusan di ${pendingApplications[0].projectTitle}.`
+                  : "Belum ada pelamar yang menunggu keputusan."}
+              </p>
+            </Link>
+            <Link
+              href={
+                projectsNeedFunding[0]
+                  ? `/workspace/${projectsNeedFunding[0].id}`
+                  : "/client/projects"
+              }
+              className="rounded-xl border border-slate-200 p-4 transition hover:bg-slate-50"
+            >
+              <WalletCards className="mb-3 h-5 w-5 text-primary" />
+              <div className="text-2xl font-bold text-slate-950">
+                {projectsNeedFunding.length}
+              </div>
+              <div className="mt-1 text-sm text-slate-500">
+                Escrow menunggu funding
+              </div>
+              <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">
+                {projectsNeedFunding[0]
+                  ? `Fund ${projectsNeedFunding[0].title} via Midtrans Sandbox.`
+                  : "Semua escrow project aktif sudah melewati tahap pending."}
+              </p>
+            </Link>
+            <Link
+              href={
+                releaseReadyProjects[0]
+                  ? `/workspace/${releaseReadyProjects[0].id}`
+                  : "/client/projects"
+              }
+              className="rounded-xl border border-slate-200 p-4 transition hover:bg-slate-50"
+            >
+              <ShieldCheck className="mb-3 h-5 w-5 text-primary" />
+              <div className="text-2xl font-bold text-slate-950">
+                {releaseReadyProjects.length}
+              </div>
+              <div className="mt-1 text-sm text-slate-500">
+                Milestone siap direview
+              </div>
+              <p className="mt-3 line-clamp-2 text-sm leading-6 text-slate-600">
+                {releaseReadyProjects[0]
+                  ? `Review milestone ${releaseReadyProjects[0].title} sebelum release.`
+                  : "Belum ada escrow held yang menunggu release."}
+              </p>
+            </Link>
+          </div>
+        </section>
       </section>
   );
 }

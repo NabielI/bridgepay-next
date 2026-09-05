@@ -11,6 +11,7 @@ import {
   CreditCard,
   FolderKanban,
   LayoutDashboard,
+  MessageCircle,
   Plus,
   Search,
   Settings,
@@ -32,6 +33,7 @@ interface DashboardIdentity {
 interface DashboardChromeProps {
   children: ReactNode;
   user: DashboardIdentity;
+  unreadMessages?: number;
 }
 
 interface SidebarItem {
@@ -45,6 +47,7 @@ const freelancerMenu = [
   { key: "dashboard", label: "Dashboard", href: "/freelancer/dashboard", icon: LayoutDashboard },
   { key: "gig-builder", label: "Gig Builder AI", href: "/freelancer/gig-builder", icon: Bot },
   { key: "discovery", label: "Discovery Feed", href: "/discovery", icon: Compass },
+  { key: "inbox", label: "Pesan", href: "/inbox", icon: MessageCircle },
   { key: "projects", label: "Proyek Saya", href: "/freelancer/projects", icon: FolderKanban },
   { key: "wallet", label: "Wallet", href: "/freelancer/wallet", icon: CreditCard },
   { key: "profile", label: "Profil & Portofolio", href: "/freelancer/profile", icon: UserRoundCheck },
@@ -55,6 +58,7 @@ const clientMenu = [
   { key: "dashboard", label: "Dashboard", href: "/client/dashboard", icon: LayoutDashboard },
   { key: "new-project", label: "+ Proyek Baru", href: "/client/projects/new", icon: Plus },
   { key: "discovery", label: "Discovery Feed", href: "/discovery", icon: Compass },
+  { key: "inbox", label: "Pesan", href: "/inbox", icon: MessageCircle },
   { key: "projects", label: "Proyek Saya", href: "/client/projects", icon: FolderKanban },
   { key: "wallet", label: "Wallet", href: "/client/wallet", icon: CreditCard },
   { key: "profile", label: "Profil", href: "/client/profile", icon: UserRoundCheck },
@@ -106,7 +110,11 @@ function kycLabel(status?: DashboardIdentity["kycStatus"]) {
   return "Pending";
 }
 
-export function DashboardChrome({ children, user }: DashboardChromeProps) {
+export function DashboardChrome({
+  children,
+  user,
+  unreadMessages = 0,
+}: DashboardChromeProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -185,6 +193,18 @@ export function DashboardChrome({ children, user }: DashboardChromeProps) {
                     }`}
                   />
                   {expanded ? <span className="truncate">{item.label}</span> : null}
+                  {item.key === "inbox" && unreadMessages > 0 ? (
+                    <span
+                      className={`ml-auto rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                        active
+                          ? "bg-primary text-white"
+                          : "bg-amber-100 text-amber-800"
+                      }`}
+                      data-testid="sidebar-inbox-unread"
+                    >
+                      {unreadMessages > 99 ? "99+" : unreadMessages}
+                    </span>
+                  ) : null}
                 </Link>
               );
             })}

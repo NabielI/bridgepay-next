@@ -13,8 +13,7 @@ import {
 } from "lucide-react";
 
 import { GigBuilder, type PublishedGig } from "@/components/dashboard/GigBuilder";
-import { KycPanel } from "@/components/dashboard/KycPanel";
-import { ProfileData, ProfileEditor } from "@/components/dashboard/ProfileEditor";
+import type { ProfileData } from "@/components/dashboard/ProfileEditor";
 
 interface DashboardProject {
   id: string;
@@ -431,12 +430,71 @@ export function DashboardShell({
 
         {!isClient ? <GigBuilder initialGigs={gigs} /> : null}
 
-        <ProfileEditor profile={profile} />
-
-        <KycPanel
-          initialStatus={profile.kycStatus}
-          initialSubmissions={profile.kycSubmissions}
-        />
+        {!isClient ? (
+          <section
+            className="rounded-2xl border border-slate-200 bg-white p-6 shadow-soft"
+            data-testid="freelancer-action-summary"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-950">
+                  Gig & Readiness Summary
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Prioritas cepat untuk menjaga profil tetap siap menerima
+                  project.
+                </p>
+              </div>
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                  needsKyc
+                    ? "bg-amber-50 text-amber-700"
+                    : "bg-teal-50 text-primary"
+                }`}
+              >
+                KYC {profile.kycStatus}
+              </span>
+            </div>
+            <div className="mt-5 grid gap-4 md:grid-cols-3">
+              <Link
+                href="/freelancer/gig-builder"
+                className="rounded-xl border border-slate-200 p-4 transition hover:bg-slate-50"
+              >
+                <PackageCheck className="mb-3 h-5 w-5 text-primary" />
+                <div className="text-2xl font-bold text-slate-950">
+                  {publishedGigs.length}
+                </div>
+                <div className="mt-1 text-sm text-slate-500">
+                  Gig published
+                </div>
+              </Link>
+              <Link
+                href="/freelancer/gig-builder"
+                className="rounded-xl border border-slate-200 p-4 transition hover:bg-slate-50"
+              >
+                <FileCheck2 className="mb-3 h-5 w-5 text-primary" />
+                <div className="text-2xl font-bold text-slate-950">
+                  {draftGigs}
+                </div>
+                <div className="mt-1 text-sm text-slate-500">
+                  Draft gig perlu dipoles
+                </div>
+              </Link>
+              <Link
+                href={needsKyc ? "/freelancer/profile" : "/discovery"}
+                className="rounded-xl border border-slate-200 p-4 transition hover:bg-slate-50"
+              >
+                <ShieldCheck className="mb-3 h-5 w-5 text-primary" />
+                <div className="text-2xl font-bold text-slate-950">
+                  {pendingApplications}
+                </div>
+                <div className="mt-1 text-sm text-slate-500">
+                  Lamaran pending
+                </div>
+              </Link>
+            </div>
+          </section>
+        ) : null}
       </section>
   );
 }

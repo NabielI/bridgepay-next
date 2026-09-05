@@ -99,6 +99,7 @@ model User {
   projectApplications    ProjectApplication[] @relation("FreelancerApplications")
   assignedProjects       Project[]            @relation("AssignedFreelancerProjects")
   passwordResetTokens    PasswordResetToken[]
+  conversationReadStates ConversationReadState[]
 }
 
 model Project {
@@ -121,10 +122,26 @@ model Project {
   escrow             Escrow?
   files              ProjectFile[]
   applications       ProjectApplication[]
+  conversationReadStates ConversationReadState[]
 
   @@index([clientId])
   @@index([assignedFreelancerId])
   @@index([status])
+}
+
+model ConversationReadState {
+  id         String   @id @default(cuid())
+  userId     String
+  projectId  String
+  lastReadAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([userId, updatedAt])
+  @@index([projectId])
 }
 
 model ProjectApplication {
