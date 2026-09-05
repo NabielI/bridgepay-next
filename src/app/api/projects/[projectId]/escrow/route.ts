@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { activityLogData } from "@/lib/activity-log";
 import { authOptions } from "@/lib/auth";
+import { createInvoiceForReleasedEscrow } from "@/lib/invoices";
 import { createNotifications } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
@@ -147,8 +148,12 @@ export async function PATCH(
         escrow: {
           select: {
             id: true,
+            amount: true,
+            currency: true,
             status: true,
             exchangeRateSnapshot: true,
+            exchangeRateTimestamp: true,
+            exchangeRateSource: true,
           },
         },
       },
@@ -174,6 +179,7 @@ export async function PATCH(
     }
 
     const currentEscrow = escrow;
+    const assignedFreelancerId = project.assignedFreelancerId;
 
     if (currentEscrow.status !== transition.from) {
       return {
@@ -187,11 +193,26 @@ export async function PATCH(
     }
 
     if (parsed.data.action === "release") {
-      if (!project.assignedFreelancer) {
+      if (!assignedFreelancerId || !project.assignedFreelancer) {
         return {
           error: NextResponse.json(
             { message: "Freelancer belum assigned untuk project ini." },
             { status: 409 },
+          ),
+        };
+      }
+
+      if (
+        !currentEscrow.exchangeRateSnapshot ||
+        !currentEscrow.exchangeRateTimestamp
+      ) {
+        return {
+          error: NextResponse.json(
+            {
+              message:
+                "Snapshot kurs escrow belum tersedia. Pencairan dihentikan agar invoice dan payout IDR tidak dihitung dari data yang tidak lengkap.",
+            },
+            { status: 503 },
           ),
         };
       }
@@ -248,6 +269,62 @@ export async function PATCH(
       }),
     });
 
+    const invoiceFreelancerId = assignedFreelancerId;
+    const invoiceExchangeRateSnapshot = updatedEscrow.exchangeRateSnapshot;
+    const invoiceExchangeRateTimestamp = updatedEscrow.exchangeRateTimestamp;
+
+    if (
+      !invoiceFreelancerId ||
+      !invoiceExchangeRateSnapshot ||
+      !invoiceExchangeRateTimestamp
+    ) {
+      return {
+        error: NextResponse.json(
+          {
+            message:
+              "Data invoice belum lengkap. Pencairan dihentikan agar invoice payout tidak dibuat dari data escrow yang tidak valid.",
+          },
+          { status: 503 },
+        ),
+      };
+    }
+
+    const invoice = await createInvoiceForReleasedEscrow(tx, {
+      projectId: project.id,
+      escrowId: updatedEscrow.id,
+      freelancerId: invoiceFreelancerId,
+      clientId: project.clientId,
+      amountUsd: updatedEscrow.amount,
+      exchangeRateSnapshot: invoiceExchangeRateSnapshot,
+      exchangeRateTimestamp: invoiceExchangeRateTimestamp,
+      exchangeRateSource: updatedEscrow.exchangeRateSource,
+    });
+
+    if (invoice.created) {
+      await tx.activityLog.create({
+        data: activityLogData({
+          actorId,
+          actorRole: "client",
+          action: "invoice.issued",
+          entityType: "invoice",
+          entityId: invoice.id,
+          metadata: {
+            projectId: project.id,
+            escrowId: updatedEscrow.id,
+            invoiceNumber: invoice.invoiceNumber,
+            freelancerId: invoiceFreelancerId,
+            clientId: project.clientId,
+            amountUsd: updatedEscrow.amount,
+            exchangeRateSnapshot:
+              updatedEscrow.exchangeRateSnapshot?.toString() ?? null,
+            amountIdr: invoice.amountIdr,
+            estimatedTaxIdr: invoice.estimatedTaxIdr,
+            netEstimatedPayoutIdr: invoice.netEstimatedPayoutIdr,
+          },
+        }),
+      });
+    }
+
     await createNotifications(tx, [
       {
         recipientId: project.clientId,
@@ -260,10 +337,10 @@ export async function PATCH(
         href: `/workspace/${project.id}`,
         allowSelf: true,
       },
-      ...(project.assignedFreelancerId
+      ...(assignedFreelancerId
         ? [
             {
-              recipientId: project.assignedFreelancerId,
+              recipientId: assignedFreelancerId,
               actorId,
               type: "escrow.released",
               title: "Payout escrow dilepas",
@@ -276,7 +353,7 @@ export async function PATCH(
         : []),
     ]);
 
-    return { escrow: updatedEscrow };
+    return { escrow: updatedEscrow, invoice };
   });
 
   if (result.error) {
@@ -285,5 +362,6 @@ export async function PATCH(
 
   return NextResponse.json({
     escrow: result.escrow ? serializeEscrow(result.escrow) : null,
+    invoice: result.invoice ?? null,
   });
 }

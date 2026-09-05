@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CreditCard, ShieldCheck } from "lucide-react";
+import { CreditCard, FileText, ShieldCheck } from "lucide-react";
 
 import { prisma } from "@/lib/prisma";
 import { requireDashboardSession } from "@/lib/route-guards";
@@ -16,32 +16,68 @@ function statusClass(status: string) {
   return "bg-amber-50 text-amber-700";
 }
 
+function formatIdr(value: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatDate(value: Date) {
+  return new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "medium",
+  }).format(value);
+}
+
 export default async function FreelancerWalletPage() {
   const session = await requireDashboardSession("freelancer");
-  const escrows = await prisma.escrow.findMany({
-    where: {
-      project: {
-        assignedFreelancerId: session.user.id,
-        status: { in: ["open", "active", "completed"] },
-      },
-    },
-    orderBy: { updatedAt: "desc" },
-    take: 12,
-    select: {
-      id: true,
-      amount: true,
-      currency: true,
-      status: true,
-      paymentMethod: true,
-      project: {
-        select: {
-          id: true,
-          title: true,
-          category: true,
+  const [escrows, invoices] = await Promise.all([
+    prisma.escrow.findMany({
+      where: {
+        project: {
+          assignedFreelancerId: session.user.id,
+          status: { in: ["open", "active", "completed"] },
         },
       },
-    },
-  });
+      orderBy: { updatedAt: "desc" },
+      take: 12,
+      select: {
+        id: true,
+        amount: true,
+        currency: true,
+        status: true,
+        paymentMethod: true,
+        project: {
+          select: {
+            id: true,
+            title: true,
+            category: true,
+          },
+        },
+      },
+    }),
+    prisma.invoice.findMany({
+      where: { freelancerId: session.user.id },
+      orderBy: { issuedAt: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        invoiceNumber: true,
+        amountUsd: true,
+        amountIdr: true,
+        estimatedTaxIdr: true,
+        netEstimatedPayoutIdr: true,
+        issuedAt: true,
+        project: {
+          select: {
+            title: true,
+            category: true,
+          },
+        },
+      },
+    }),
+  ]);
   const availableBalance = escrows.reduce(
     (sum, escrow) => (escrow.status === "released" ? sum + escrow.amount : sum),
     0,
@@ -125,6 +161,65 @@ export default async function FreelancerWalletPage() {
                     className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                   >
                     Detail
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-soft">
+        <div className="border-b border-slate-200 p-6">
+          <h2 className="text-lg font-bold text-slate-950">
+            Invoice Payout
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Invoice otomatis muncul setelah escrow project dilepas ke
+            freelancer.
+          </p>
+        </div>
+        {invoices.length === 0 ? (
+          <div className="p-10 text-center text-sm text-slate-500">
+            Belum ada invoice. Invoice akan dibuat otomatis saat escrow
+            released.
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-200">
+            {invoices.map((invoice) => (
+              <div
+                key={invoice.id}
+                className="flex flex-wrap items-center justify-between gap-4 p-5"
+                data-testid="wallet-invoice-row"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <FileText className="h-4 w-4 text-primary" />
+                    <div className="font-semibold text-slate-950">
+                      {invoice.invoiceNumber}
+                    </div>
+                  </div>
+                  <div className="mt-1 text-sm text-slate-500">
+                    {invoice.project.title} - {invoice.project.category} -
+                    diterbitkan {formatDate(invoice.issuedAt)}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="text-right">
+                    <div className="text-sm font-bold text-primary">
+                      USD {invoice.amountUsd.toLocaleString("en-US")}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Pajak est. {formatIdr(invoice.estimatedTaxIdr)} - bersih{" "}
+                      {formatIdr(invoice.netEstimatedPayoutIdr)}
+                    </div>
+                  </div>
+                  <Link
+                    href={`/freelancer/invoices/${invoice.id}`}
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                    data-testid="wallet-invoice-detail-link"
+                  >
+                    Lihat Invoice
                   </Link>
                 </div>
               </div>

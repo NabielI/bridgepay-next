@@ -107,6 +107,8 @@ model User {
   freelancerCertifications FreelancerCertification[]
   notifications          Notification[]      @relation("NotificationRecipient")
   sentNotifications      Notification[]      @relation("NotificationActor")
+  freelancerInvoices     Invoice[]           @relation("FreelancerInvoices")
+  clientInvoices         Invoice[]           @relation("ClientInvoices")
 }
 
 model Project {
@@ -130,6 +132,7 @@ model Project {
   files              ProjectFile[]
   applications       ProjectApplication[]
   conversationReadStates ConversationReadState[]
+  invoices           Invoice[]
 
   @@index([clientId])
   @@index([assignedFreelancerId])
@@ -334,6 +337,38 @@ model Escrow {
   project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   events  EscrowEvent[]
   paymentTransactions PaymentTransaction[]
+  invoice Invoice?
+}
+
+model Invoice {
+  id                    String   @id @default(cuid())
+  invoiceNumber         String   @unique
+  projectId             String
+  escrowId              String   @unique
+  freelancerId          String
+  clientId              String
+  amountUsd             Int
+  exchangeRateSnapshot  Decimal  @db.Decimal(18, 6)
+  exchangeRateTimestamp DateTime
+  exchangeRateSource    String?
+  amountIdr             Int
+  taxRate               Decimal  @db.Decimal(8, 6)
+  estimatedTaxIdr       Int
+  netEstimatedPayoutIdr Int
+  status                String   @default("issued")
+  issuedAt              DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  escrow     Escrow  @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+  freelancer User    @relation("FreelancerInvoices", fields: [freelancerId], references: [id], onDelete: Cascade)
+  client     User    @relation("ClientInvoices", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([freelancerId, issuedAt])
+  @@index([clientId, issuedAt])
+  @@index([projectId])
+  @@index([status, issuedAt])
 }
 
 model PaymentTransaction {
