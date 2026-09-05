@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  CheckCircle2,
   CreditCard,
   Download,
   ExternalLink,
@@ -11,6 +12,7 @@ import {
   Send,
   ShieldCheck,
   Upload,
+  X,
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 
@@ -243,6 +245,19 @@ function paymentStatusClass(status?: string) {
   return "bg-slate-100 text-slate-600";
 }
 
+function escrowFundingNoticeKey(
+  escrow: WorkspaceEscrow,
+  role: ProjectWorkspaceClientProps["role"],
+) {
+  return [
+    "bridgepay",
+    "escrow-funded-notice",
+    role,
+    escrow.id,
+    escrow.exchangeRateTimestamp ?? "no-timestamp",
+  ].join(":");
+}
+
 export function ProjectWorkspaceClient({
   role,
   project,
@@ -265,6 +280,7 @@ export function ProjectWorkspaceClient({
     null,
   );
   const [escrowError, setEscrowError] = useState<string | null>(null);
+  const [escrowFundingNoticeOpen, setEscrowFundingNoticeOpen] = useState(false);
   const [filePending, setFilePending] = useState(false);
   const [downloadPending, setDownloadPending] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -294,6 +310,35 @@ export function ProjectWorkspaceClient({
       method: "POST",
     }).catch(() => null);
   }, [project.id]);
+
+  useEffect(() => {
+    if (
+      !escrow ||
+      escrow.status !== "held" ||
+      !escrow.exchangeRateSnapshot ||
+      !escrow.exchangeRateTimestamp
+    ) {
+      return;
+    }
+
+    const storageKey = escrowFundingNoticeKey(escrow, role);
+
+    try {
+      if (window.localStorage.getItem(storageKey)) {
+        return;
+      }
+
+      window.localStorage.setItem(storageKey, new Date().toISOString());
+    } catch {
+      // localStorage can be unavailable in private/restricted contexts.
+    }
+
+    const noticeTimer = window.setTimeout(() => {
+      setEscrowFundingNoticeOpen(true);
+    }, 0);
+
+    return () => window.clearTimeout(noticeTimer);
+  }, [escrow, role]);
 
   async function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -446,7 +491,45 @@ export function ProjectWorkspaceClient({
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
+    <>
+      {escrowFundingNoticeOpen &&
+      escrow?.status === "held" &&
+      lockedRate &&
+      escrow.exchangeRateTimestamp ? (
+        <div
+          className="fixed right-4 top-4 z-50 max-w-md rounded-2xl border border-teal-200 bg-white p-4 shadow-2xl shadow-slate-900/15"
+          data-testid="escrow-funded-notice"
+          role="status"
+        >
+          <div className="flex items-start gap-3">
+            <div className="rounded-full bg-teal-50 p-2 text-primary">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="font-bold text-slate-950">
+                Dana berhasil di-escrow!
+              </div>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                Kurs terkunci: 1 USD = Rp{formatRate(lockedRate)} (per{" "}
+                {formatTimestamp(escrow.exchangeRateTimestamp)}). Nominal payout
+                freelancer akan konsisten menggunakan kurs ini, terlepas dari
+                perubahan kurs di masa depan.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setEscrowFundingNoticeOpen(false)}
+              className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              aria-label="Tutup notifikasi escrow"
+              data-testid="escrow-funded-notice-close"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
       <section
         id="chat"
         className="rounded-2xl border border-slate-200 bg-white shadow-soft"
@@ -900,6 +983,7 @@ export function ProjectWorkspaceClient({
           </div>
         </article>
       </aside>
-    </div>
+      </div>
+    </>
   );
 }
