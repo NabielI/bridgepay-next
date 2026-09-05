@@ -103,7 +103,7 @@ function VisualPanel() {
           <span className="text-xl font-bold">BridgePay</span>
         </Link>
         <h2 className="mb-4 max-w-md text-4xl font-bold leading-tight">
-          Escrow aman untuk kerja lintas negara.
+          Escrow transparan untuk kerja lintas negara.
         </h2>
         <p className="max-w-md text-sm leading-6 text-slate-300">
           Akun dibuat dari role yang kamu pilih, disimpan ke Supabase, lalu
@@ -112,9 +112,9 @@ function VisualPanel() {
       </div>
       <div className="relative grid gap-3">
         {[
-          ["50.000+", "Freelancer terverifikasi"],
-          ["100%", "Escrow protected"],
-          ["1 akun", "Role client atau freelancer"],
+          ["KYC", "Admin review aktif"],
+          ["Sandbox", "Midtrans escrow demo"],
+          ["Role", "Client atau freelancer"],
         ].map(([value, label]) => (
           <div
             key={label}

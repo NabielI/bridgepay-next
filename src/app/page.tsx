@@ -83,21 +83,23 @@ const fallbackShowcase: ShowcaseGig[] = [
 
 const testimonials = [
   {
-    name: "Raka, freelance web developer",
+    name: "Persona freelancer prototype",
     quote:
       "Saya join BridgePay karena diskusi project, escrow, dan file delivery ada di satu tempat. Untuk freelancer, kepastian milestone itu penting.",
   },
   {
-    name: "Maya, brand designer",
+    name: "Contoh brand designer",
     quote:
       "Client global biasanya minta bukti trust. Status KYC, portfolio, dan riwayat escrow membantu saya terlihat lebih siap.",
   },
   {
-    name: "Dian, data analyst",
+    name: "Contoh data analyst",
     quote:
       "Workflow-nya terasa dibuat untuk kerja lintas negara, bukan cuma listing job. Saya bisa paham status payout dari awal.",
   },
 ];
+
+const publicMetricThreshold = 10;
 
 function initials(name: string) {
   return name
@@ -188,26 +190,48 @@ export default async function Home() {
   const hasLimitedLiveShowcase = gigs.length > showcase.length;
   const heroPreview = showcase.slice(0, showcase.length <= 2 ? 2 : 3);
   const trustSignals = [
-    {
-      label: "Freelancer terverifikasi",
-      value:
-        verifiedFreelancers > 0
-          ? verifiedFreelancers.toLocaleString("id-ID")
-          : "50+",
-      note: verifiedFreelancers > 0 ? "Data database" : "Target prototype",
-    },
-    {
-      label: "Project selesai",
-      value:
-        completedProjects > 0 ? completedProjects.toLocaleString("id-ID") : "25+",
-      note: completedProjects > 0 ? "Data database" : "Target prototype",
-    },
-    {
-      label: "Escrow terlindungi",
-      value:
-        protectedEscrows > 0 ? protectedEscrows.toLocaleString("id-ID") : "100%",
-      note: protectedEscrows > 0 ? "Data database" : "Target prototype",
-    },
+    verifiedFreelancers >= publicMetricThreshold
+      ? {
+          label: "Freelancer terverifikasi",
+          value: verifiedFreelancers.toLocaleString("id-ID"),
+          note: "Data database production",
+        }
+      : {
+          label: "KYC admin review aktif",
+          value: "Live",
+          note:
+            verifiedFreelancers > 0
+              ? `${verifiedFreelancers.toLocaleString("id-ID")} freelancer verified di database production`
+              : "Admin review KYC aktif untuk user baru",
+        },
+    protectedEscrows >= publicMetricThreshold
+      ? {
+          label: "Escrow pernah held/released",
+          value: protectedEscrows.toLocaleString("id-ID"),
+          note: "Data database production",
+        }
+      : {
+          label: "Escrow Midtrans Sandbox",
+          value: "Aktif",
+          note:
+            protectedEscrows > 0
+              ? `${protectedEscrows.toLocaleString("id-ID")} escrow pernah held/released di database`
+              : "Terintegrasi payment sandbox untuk demo",
+        },
+    completedProjects >= publicMetricThreshold
+      ? {
+          label: "Project selesai",
+          value: completedProjects.toLocaleString("id-ID"),
+          note: "Data database production",
+        }
+      : {
+          label: "Platform baru diluncurkan",
+          value: "Beta",
+          note:
+            completedProjects > 0
+              ? "Project completed masih dalam fase awal"
+              : "Belum ada project completed di database production",
+        },
   ];
 
   return (
